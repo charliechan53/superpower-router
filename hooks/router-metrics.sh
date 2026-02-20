@@ -14,9 +14,20 @@ has_jq() {
     [[ -n "$JQ_BIN" && -x "$JQ_BIN" ]]
 }
 
+canonical_default_metrics_file() {
+    printf '/tmp/superpower-router-metrics-%s.json\n' "${USER:-user}"
+}
+
+legacy_tmpdir_metrics_file() {
+    printf '%s/superpower-router-metrics-%s.json\n' "${TMPDIR:-/tmp}" "${USER:-user}"
+}
+
 metrics_file() {
-    local default_path="${TMPDIR:-/tmp}/superpower-router-metrics-${USER:-user}.json"
-    printf '%s\n' "${ROUTER_METRICS_FILE:-$default_path}"
+    if [[ -n "${ROUTER_METRICS_FILE:-}" ]]; then
+        printf '%s\n' "$ROUTER_METRICS_FILE"
+        return
+    fi
+    canonical_default_metrics_file
 }
 
 now_iso_utc() {
@@ -93,6 +104,28 @@ EOF
 ensure_parent_dir() {
     local file="$1"
     mkdir -p "$(dirname "$file")"
+}
+
+sync_default_metrics_path() {
+    if [[ -n "${ROUTER_METRICS_FILE:-}" ]]; then
+        return 0
+    fi
+
+    local canonical legacy
+    canonical="$(canonical_default_metrics_file)"
+    legacy="$(legacy_tmpdir_metrics_file)"
+
+    # No-op when TMPDIR resolves to /tmp and both paths are identical.
+    if [[ "$legacy" == "$canonical" ]]; then
+        return 0
+    fi
+
+    if [[ -f "$legacy" ]]; then
+        if [[ ! -f "$canonical" || "$legacy" -nt "$canonical" ]]; then
+            ensure_parent_dir "$canonical"
+            cp "$legacy" "$canonical" 2>/dev/null || cat "$legacy" > "$canonical"
+        fi
+    fi
 }
 
 ensure_schema_v2() {
@@ -183,6 +216,7 @@ ensure_schema_v2() {
 
 ensure_metrics_file() {
     local file
+    sync_default_metrics_path
     file="$(metrics_file)"
     ensure_parent_dir "$file"
 
