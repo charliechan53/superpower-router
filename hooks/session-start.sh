@@ -7,6 +7,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+CODEX_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh"
+GEMINI_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh"
+CLAUDE_HOME="${HOME}/.claude"
+CLAUDE_CODEX_SHIM="${CLAUDE_HOME}/codex-runner.sh"
+CLAUDE_GEMINI_SHIM="${CLAUDE_HOME}/gemini-runner.sh"
 
 # Initialize metrics file on session start. Do not reset by default because
 # SessionStart also fires on resume/compact in many workflows.
@@ -17,6 +22,16 @@ if [[ -x "$METRICS_HELPER" ]]; then
     else
         /bin/bash "$METRICS_HELPER" read >/dev/null 2>&1 || true
     fi
+fi
+
+# Compatibility shims: some prompts/tools call ~/.claude/{codex,gemini}-runner.sh.
+# Keep these symlinks up to date with this plugin install path.
+mkdir -p "$CLAUDE_HOME" >/dev/null 2>&1 || true
+if [[ -x "$CODEX_RUNNER" ]]; then
+    ln -sfn "$CODEX_RUNNER" "$CLAUDE_CODEX_SHIM" >/dev/null 2>&1 || true
+fi
+if [[ -x "$GEMINI_RUNNER" ]]; then
+    ln -sfn "$GEMINI_RUNNER" "$CLAUDE_GEMINI_SHIM" >/dev/null 2>&1 || true
 fi
 
 # Check if legacy skills directory exists and build warning
@@ -68,6 +83,15 @@ routing_context+="- Code tasks (implement, review, refactor) → Codex CLI via c
 routing_context+="- Research tasks (web, docs, trends) → Gemini CLI via gemini-runner.sh\\n"
 routing_context+="- Orchestration (plan, decide, synthesize) → Stay on Claude\\n"
 routing_context+="- Codex failure (default fail-closed) → Ask user before Claude/Sonnet fallback"
+routing_context+="\\n\\nRunner paths:\\n"
+routing_context+="- Canonical Codex runner: ${CODEX_RUNNER}\\n"
+routing_context+="- Canonical Gemini runner: ${GEMINI_RUNNER}\\n"
+routing_context+="- Compatibility Codex runner: ${CLAUDE_CODEX_SHIM}\\n"
+routing_context+="- Compatibility Gemini runner: ${CLAUDE_GEMINI_SHIM}\\n"
+routing_context+="\\nRunner invocation examples (use /bin/bash explicitly):\\n"
+routing_context+="- Codex code task: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" workspace-write \"<working-dir>\"\\n"
+routing_context+="- Codex review/read-only: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" read-only \"<working-dir>\"\\n"
+routing_context+="- Gemini research task: /bin/bash ${CLAUDE_GEMINI_SHIM} \"<research prompt>\""
 
 routing_escaped=$(escape_for_json "$routing_context")
 

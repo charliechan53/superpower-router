@@ -116,6 +116,26 @@ If you prefer Claude native status line command:
 }
 ```
 
+## Runner Compatibility Paths
+
+On `SessionStart`, the plugin now auto-creates compatibility symlinks:
+
+```bash
+~/.claude/codex-runner.sh
+~/.claude/gemini-runner.sh
+```
+
+Both point to the currently installed plugin runners and are intended for tools/prompts
+that call runner scripts from `~/.claude/*`.
+
+Use `/bin/bash` when invoking from hooks/prompts:
+
+```bash
+/bin/bash ~/.claude/codex-runner.sh "Fix failing tests" workspace-write "/path/to/repo"
+/bin/bash ~/.claude/codex-runner.sh "Review recent changes" read-only "/path/to/repo"
+/bin/bash ~/.claude/gemini-runner.sh "Research latest SDK breaking changes"
+```
+
 ## How It Saves Tokens
 
 - Delegates large code-generation and code-edit loops to Codex CLI.
