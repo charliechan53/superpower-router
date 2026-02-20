@@ -3,3 +3,6 @@
 
 # Local planning docs (session-specific, not for distribution)
 docs/
+
+# Local operator instructions
+CLADUE.md
