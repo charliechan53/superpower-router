@@ -47,6 +47,19 @@ Install `superpower-router` from the Claude Code plugin marketplace.
 | `finishing-work` | Verify + integrate (merge, PR, squash) |
 | `writing-skills` | Create new skills with TDD methodology |
 
+## Slash Commands
+
+Use plugin-scoped slash commands (Claude UI may also show unscoped aliases):
+Note: the command namespace is `superpower-router:` (not `superpower:`).
+
+| Slash command | Purpose |
+| --- | --- |
+| `superpower-router:brainstorm` | Start design-first flow before implementation |
+| `superpower-router:brainstorming` | Alias of `brainstorm` |
+| `superpower-router:write-plan` | Create a routed implementation plan |
+| `superpower-router:execute-plan` | Execute an existing plan with routed batches |
+| `superpower-router:plan-and-execute` | Alias for combined routed planning/execution flow |
+
 ## Routing Table
 
 | Task Type | Routed To | Why |

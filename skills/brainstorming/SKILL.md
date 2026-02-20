@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "You MUST use this before creative implementation work. Produce approved design, then hand off to plan-and-execute for Codex/Gemini routing."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -28,7 +28,7 @@ You MUST create a task for each of these items and complete them in order:
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
 4. **Present design** — in sections scaled to their complexity, get user approval after each section
 5. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>-design.md` and commit
-6. **Transition to implementation** — invoke `superpower-router:plan-and-execute` skill to create implementation plan
+6. **Transition to implementation** — invoke `superpower-router:plan-and-execute` to create/execute a routed implementation plan (Codex for code, Gemini for research)
 
 ## Process Flow
 
@@ -52,7 +52,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking `superpower-router:plan-and-execute`.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is `superpower-router:plan-and-execute`.
+**The terminal state is invoking `superpower-router:plan-and-execute`.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is `superpower-router:plan-and-execute`, and that handoff should proactively route code tasks to Codex and research tasks to Gemini.
 
 ## The Process
 
@@ -67,6 +67,7 @@ digraph brainstorming {
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
+- If an approach depends on external facts (libraries, APIs, standards), gather those facts via Gemini during planning
 
 **Presenting the design:**
 - Once you believe you understand what you're building, present the design
@@ -83,7 +84,11 @@ digraph brainstorming {
 - Commit the design document to git
 
 **Implementation:**
-- Invoke `superpower-router:plan-and-execute` to create a detailed implementation plan
+- Invoke `superpower-router:plan-and-execute` immediately after user approval
+- Handoff must include explicit route intent:
+  - implementation/refactor/review => Codex CLI first
+  - external research/docs lookup => Gemini CLI first
+  - Sonnet => fallback only
 - Do NOT invoke any other implementation skill. `superpower-router:plan-and-execute` is the next step.
 
 ## Key Principles

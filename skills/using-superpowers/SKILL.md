@@ -12,6 +12,12 @@ description: Use when starting any conversation — establishes skill usage rule
 1. **Process skills first** (brainstorming, debugging) — determine HOW to approach
 2. **Implementation skills second** (plan-and-execute, code-review) — guide execution
 
+## Routing Default
+
+- For executable code tasks, route to Codex CLI first via `plan-and-execute`.
+- For external research/docs lookup tasks, route to Gemini CLI first via `plan-and-execute`.
+- Use Sonnet only when Codex/Gemini routing is unavailable or returns fallback codes.
+
 ## Available Skills
 
 | Skill | When to use |
