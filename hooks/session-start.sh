@@ -6,6 +6,12 @@ set -euo pipefail
 # Determine plugin root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+
+# Reset per-session offload metrics at each session start/resume event.
+if [[ -x "$METRICS_HELPER" ]]; then
+    "$METRICS_HELPER" reset >/dev/null 2>&1 || true
+fi
 
 # Check if legacy skills directory exists and build warning
 warning_message=""

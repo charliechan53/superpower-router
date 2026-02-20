@@ -78,6 +78,43 @@ export CODEX_FAIL_CLOSED=1
 export GEMINI_TIMEOUT=60
 ```
 
+## Deferred Token Indicator (ccstatusline)
+
+`superpower-router` now tracks per-session tokens deferred to Codex/Gemini and exposes a status command:
+
+```bash
+~/.claude/plugins/superpower-router/hooks/router-statusline.sh
+```
+
+It renders:
+
+```text
+Offload C:<codex> G:<gemini> Σ:<total>
+```
+
+Configure it in ccstatusline as a **Custom Command** widget (command = script above).
+
+Optional metric file override:
+
+```bash
+export ROUTER_METRICS_FILE=/tmp/superpower-router-metrics.json
+```
+
+Metrics reset at Claude SessionStart (startup/resume/clear/compact).
+
+## Deferred Token Indicator (native statusLine)
+
+If you prefer Claude native status line command:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/plugins/superpower-router/hooks/router-statusline.sh"
+  }
+}
+```
+
 ## How It Saves Tokens
 
 - Delegates large code-generation and code-edit loops to Codex CLI.

@@ -27,6 +27,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+
 # macOS doesn't ship 'timeout'; use gtimeout (coreutils) or run without timeout
 _timeout() {
     local secs="$1"; shift
@@ -134,6 +138,46 @@ exit_with_fallback_policy() {
     exit "$fallback_exit_code"
 }
 
+record_codex_usage() {
+    local jsonl_output="$1"
+    if [[ ! -x "$METRICS_HELPER" ]]; then
+        return 0
+    fi
+
+    local usage_line input_tokens cached_input_tokens output_tokens
+    usage_line="$(
+        printf '%s\n' "$jsonl_output" \
+          | sed -n '/^[[:space:]]*{/p' \
+          | jq -rc 'select(.type == "turn.completed" and .usage != null) | .usage' 2>/dev/null \
+          | tail -n 1
+    )"
+
+    if [[ -z "$usage_line" ]]; then
+        return 0
+    fi
+
+    input_tokens="$(printf '%s\n' "$usage_line" | jq -r '.input_tokens // 0' 2>/dev/null || echo 0)"
+    cached_input_tokens="$(printf '%s\n' "$usage_line" | jq -r '.cached_input_tokens // 0' 2>/dev/null || echo 0)"
+    output_tokens="$(printf '%s\n' "$usage_line" | jq -r '.output_tokens // 0' 2>/dev/null || echo 0)"
+
+    "$METRICS_HELPER" add_codex "$input_tokens" "$cached_input_tokens" "$output_tokens" >/dev/null 2>&1 || true
+}
+
+extract_last_agent_message() {
+    local jsonl_output="$1"
+    printf '%s\n' "$jsonl_output" \
+      | sed -n '/^[[:space:]]*{/p' \
+      | jq -r '
+          select(
+            .type == "item.completed"
+            and .item != null
+            and .item.type == "agent_message"
+            and .item.text != null
+          ) | .item.text
+        ' 2>/dev/null \
+      | tail -n 1
+}
+
 # Validate working directory exists
 if [[ ! -d "$WORKDIR" ]]; then
     echo "ERROR: Working directory does not exist: $WORKDIR" >&2
@@ -148,27 +192,41 @@ if ! command -v codex &>/dev/null; then
 fi
 
 run_codex() {
+    local output_last_message_file="$1"
     _timeout "${TIMEOUT}" codex exec \
         -m "$MODEL" \
         --config "model_reasoning_effort=\"${EFFORT}\"" \
         --sandbox "$SANDBOX" \
         --full-auto \
         --skip-git-repo-check \
+        --json \
+        --output-last-message "$output_last_message_file" \
         -C "$WORKDIR" \
         "$PROMPT"
 }
 
 attempt=0
 while (( attempt <= MAX_RETRIES )); do
+    message_file="$(mktemp)"
     set +e
-    output=$(run_codex 2>&1)
+    output=$(run_codex "$message_file" 2>&1)
     exit_code=$?
     set -e
 
     if (( exit_code == 0 )); then
-        echo "$output"
+        record_codex_usage "$output"
+        final_output=""
+        if [[ -s "$message_file" ]]; then
+            final_output="$(cat "$message_file")"
+        fi
+        if [[ -z "$final_output" ]]; then
+            final_output="$(extract_last_agent_message "$output")"
+        fi
+        rm -f "$message_file"
+        echo "$final_output"
         exit 0
     fi
+    rm -f "$message_file"
 
     # Check for rate limit
     if echo "$output" | grep -qi "429\|rate.limit\|too many requests"; then

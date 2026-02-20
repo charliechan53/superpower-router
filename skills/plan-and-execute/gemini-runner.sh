@@ -18,6 +18,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+
 # macOS doesn't ship 'timeout'; use gtimeout (coreutils) or run without timeout
 _timeout() {
     local secs="$1"; shift
@@ -48,7 +52,54 @@ if [[ -n "$MODEL" ]]; then
 fi
 
 run_gemini() {
-    _timeout "${TIMEOUT}" gemini "${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"}" "$PROMPT" --output-format text 2>&1
+    _timeout "${TIMEOUT}" gemini "${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"}" "$PROMPT" --output-format json 2>&1
+}
+
+extract_json_payload() {
+    local output="$1"
+    printf '%s\n' "$output" | awk '
+        BEGIN { capture = 0 }
+        /^[[:space:]]*{/ { capture = 1 }
+        { if (capture) print }
+    '
+}
+
+record_gemini_usage() {
+    local json_payload="$1"
+    if [[ ! -x "$METRICS_HELPER" ]]; then
+        return 0
+    fi
+
+    local stats_tsv
+    stats_tsv="$(
+        printf '%s\n' "$json_payload" | jq -r '
+            [
+              ([ (.stats.models // {})[] | (.tokens.input // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.prompt // .tokens.input // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.candidates // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.thoughts // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.tool // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.cached // 0) ] | add // 0),
+              ([ (.stats.models // {})[] | (.tokens.total // 0) ] | add // 0)
+            ] | @tsv
+        ' 2>/dev/null || true
+    )"
+
+    if [[ -z "$stats_tsv" ]]; then
+        return 0
+    fi
+
+    local input_tokens prompt_tokens candidates_tokens thoughts_tokens tool_tokens cached_tokens total_tokens
+    IFS=$'\t' read -r input_tokens prompt_tokens candidates_tokens thoughts_tokens tool_tokens cached_tokens total_tokens <<< "$stats_tsv"
+
+    "$METRICS_HELPER" add_gemini \
+        "${input_tokens:-0}" \
+        "${prompt_tokens:-0}" \
+        "${candidates_tokens:-0}" \
+        "${thoughts_tokens:-0}" \
+        "${tool_tokens:-0}" \
+        "${cached_tokens:-0}" \
+        "${total_tokens:-0}" >/dev/null 2>&1 || true
 }
 
 attempt=0
@@ -59,7 +110,18 @@ while (( attempt <= MAX_RETRIES )); do
     set -e
 
     if (( exit_code == 0 )); then
-        echo "$output"
+        json_payload="$(extract_json_payload "$output")"
+        if printf '%s\n' "$json_payload" | jq empty >/dev/null 2>&1; then
+            response="$(printf '%s\n' "$json_payload" | jq -r '.response // empty' 2>/dev/null || true)"
+            record_gemini_usage "$json_payload"
+            if [[ -n "$response" ]]; then
+                echo "$response"
+            else
+                echo "$output"
+            fi
+        else
+            echo "$output"
+        fi
         exit 0
     fi
 
