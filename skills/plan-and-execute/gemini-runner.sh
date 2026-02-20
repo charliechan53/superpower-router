@@ -55,6 +55,13 @@ if [[ -n "$MODEL" ]]; then
     MODEL_ARGS=(-m "$MODEL")
 fi
 
+metrics_cmd() {
+    if [[ ! -x "$METRICS_HELPER" ]]; then
+        return 0
+    fi
+    /bin/bash "$METRICS_HELPER" "$@" >/dev/null 2>&1 || true
+}
+
 run_gemini() {
     _timeout "${TIMEOUT}" gemini "${MODEL_ARGS[@]+"${MODEL_ARGS[@]}"}" "$PROMPT" --output-format json 2>&1
 }
@@ -76,16 +83,39 @@ record_gemini_usage() {
 
     local stats_tsv
     stats_tsv="$(
-        printf '%s\n' "$json_payload" | "$JQ_BIN" -r '
+        printf '%s\n' "$json_payload" | "$JQ_BIN" -r -s '
+            def model_stats($o):
+              [
+                ([ ($o.stats.models // {})[] | (.tokens.input // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.prompt // .tokens.input // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.candidates // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.thoughts // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.tool // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.cached // 0) ] | add // 0),
+                ([ ($o.stats.models // {})[] | (.tokens.total // 0) ] | add // 0)
+              ];
+            def stream_stats($o):
+              [
+                ($o.stats.input_tokens // $o.stats.input // 0),
+                ($o.stats.input_tokens // $o.stats.input // 0),
+                ($o.stats.output_tokens // 0),
+                0,
+                ($o.stats.tool_calls // 0),
+                ($o.stats.cached // 0),
+                ($o.stats.total_tokens // (($o.stats.input_tokens // $o.stats.input // 0) + ($o.stats.output_tokens // 0)))
+              ];
             [
-              ([ (.stats.models // {})[] | (.tokens.input // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.prompt // .tokens.input // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.candidates // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.thoughts // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.tool // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.cached // 0) ] | add // 0),
-              ([ (.stats.models // {})[] | (.tokens.total // 0) ] | add // 0)
-            ] | @tsv
+              .[] as $o
+              | if (($o.stats.models? // null) != null) then
+                  model_stats($o)
+                elif ($o.type == "result" and ($o.stats? != null)) then
+                  stream_stats($o)
+                elif ($o.stats? != null and (($o.stats.total_tokens? // null) != null or ($o.stats.input_tokens? // null) != null or ($o.stats.input? // null) != null)) then
+                  stream_stats($o)
+                else
+                  empty
+                end
+            ] | last // empty | @tsv
         ' 2>/dev/null || true
     )"
 
@@ -106,14 +136,27 @@ record_gemini_usage() {
         "${total_tokens:-0}" >/dev/null 2>&1 || true
 }
 
+extract_retry_after_seconds() {
+    local output="$1"
+    local retry_after=""
+
+    retry_after="$(printf '%s\n' "$output" | sed -nE 's/.*[Rr]etry in ([0-9]+([.][0-9]+)?)s.*/\1/p' | head -n 1)"
+    if [[ -z "$retry_after" ]]; then
+        retry_after="$(printf '%s\n' "$output" | sed -nE 's/.*"retryDelay"[[:space:]]*:[[:space:]]*"([0-9]+)s".*/\1/p' | head -n 1)"
+    fi
+    printf '%s\n' "$retry_after"
+}
+
 attempt=0
 while (( attempt <= MAX_RETRIES )); do
+    metrics_cmd mark_attempt gemini
     set +e
     output=$(run_gemini 2>&1)
     exit_code=$?
     set -e
 
     if (( exit_code == 0 )); then
+        metrics_cmd mark_success gemini
         json_payload="$(extract_json_payload "$output")"
         if [[ -n "$JQ_BIN" && -x "$JQ_BIN" ]] && printf '%s\n' "$json_payload" | "$JQ_BIN" empty >/dev/null 2>&1; then
             response="$(printf '%s\n' "$json_payload" | "$JQ_BIN" -r '.response // empty' 2>/dev/null || true)"
@@ -131,6 +174,9 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for rate limit
     if echo "$output" | grep -qi "429\|RESOURCE_EXHAUSTED\|rateLimitExceeded\|rate.limit\|capacity"; then
+        retry_after="$(extract_retry_after_seconds "$output")"
+        metrics_cmd set_rate_limit gemini "${retry_after:-}" "rate_limited"
+        metrics_cmd mark_failure gemini "$exit_code" "rate_limited"
         if (( attempt < MAX_RETRIES )); then
             echo "RETRY: Gemini rate limited, waiting 30s..." >&2
             sleep 30
@@ -144,6 +190,7 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for auth failure
     if echo "$output" | grep -qi "auth\|unauthorized\|403\|credential\|UNAUTHENTICATED"; then
+        metrics_cmd mark_failure gemini "$exit_code" "authentication_failure"
         echo "ERROR: Gemini authentication failure. Run 'gemini' interactively to authenticate." >&2
         echo "${output:0:500}" >&2
         exit 11
@@ -151,11 +198,13 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for timeout
     if (( exit_code == 124 )); then
+        metrics_cmd mark_failure gemini "$exit_code" "timeout"
         echo "ERROR: Gemini timed out after ${TIMEOUT}s." >&2
         exit 12
     fi
 
     # Other failure
+    metrics_cmd mark_failure gemini "$exit_code" "general_failure"
     if (( attempt < MAX_RETRIES )); then
         ((attempt++))
         continue

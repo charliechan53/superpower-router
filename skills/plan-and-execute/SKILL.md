@@ -148,6 +148,11 @@ Advanced form with different prompts:
 | `CODEX_FAIL_CLOSED` | `1` |
 | `GEMINI_TIMEOUT` | `60` |
 
+Telemetry note:
+- Router metrics now track token offload plus backend attempt/success/failure health.
+- Statusline format: `Offload C:<tokens> G:<tokens> Σ:<tokens> | S/F C:<s>/<f> G:<s>/<f> | RL C:<remaining> G:<remaining|retry|N/A>`.
+- Gemini rate-limit is best-effort (`retry in Xs` parsing); `N/A` means unavailable.
+
 ## 11) Anti-Patterns
 - Creating a plan without a backend route per task
 - Implementing code directly in Claude when Codex is available

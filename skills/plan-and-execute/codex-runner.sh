@@ -142,29 +142,80 @@ exit_with_fallback_policy() {
     exit "$fallback_exit_code"
 }
 
-record_codex_usage() {
+metrics_cmd() {
+    if [[ ! -x "$METRICS_HELPER" ]]; then
+        return 0
+    fi
+    /bin/bash "$METRICS_HELPER" "$@" >/dev/null 2>&1 || true
+}
+
+record_codex_metrics() {
     local jsonl_output="$1"
     if [[ ! -x "$METRICS_HELPER" || -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
         return 0
     fi
 
-    local usage_line input_tokens cached_input_tokens output_tokens
+    local json_lines usage_line input_tokens cached_input_tokens output_tokens
+    json_lines="$(printf '%s\n' "$jsonl_output" | sed -n '/^[[:space:]]*{/p')"
+
     usage_line="$(
-        printf '%s\n' "$jsonl_output" \
-          | sed -n '/^[[:space:]]*{/p' \
+        printf '%s\n' "$json_lines" \
           | "$JQ_BIN" -rc 'select(.type == "turn.completed" and .usage != null) | .usage' 2>/dev/null \
           | tail -n 1
     )"
 
     if [[ -z "$usage_line" ]]; then
-        return 0
+        usage_line="$(
+            printf '%s\n' "$json_lines" \
+              | "$JQ_BIN" -rc '
+                if .type == "token_count" and .info != null then
+                  (.info.total_token_usage // .info.last_token_usage // empty)
+                elif .payload != null and .payload.type == "token_count" and .payload.info != null then
+                  (.payload.info.total_token_usage // .payload.info.last_token_usage // empty)
+                else
+                  empty
+                end
+              ' 2>/dev/null \
+              | tail -n 1
+        )"
     fi
 
-    input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.input_tokens // 0' 2>/dev/null || echo 0)"
-    cached_input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.cached_input_tokens // 0' 2>/dev/null || echo 0)"
-    output_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.output_tokens // 0' 2>/dev/null || echo 0)"
+    if [[ -z "$usage_line" ]]; then
+        :
+    else
+        input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.input_tokens // 0' 2>/dev/null || echo 0)"
+        cached_input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.cached_input_tokens // 0' 2>/dev/null || echo 0)"
+        output_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.output_tokens // 0' 2>/dev/null || echo 0)"
 
-    /bin/bash "$METRICS_HELPER" add_codex "$input_tokens" "$cached_input_tokens" "$output_tokens" >/dev/null 2>&1 || true
+        metrics_cmd add_codex "$input_tokens" "$cached_input_tokens" "$output_tokens"
+    fi
+
+    local rl_tsv primary_used primary_reset secondary_used secondary_reset
+    rl_tsv="$(
+        printf '%s\n' "$json_lines" \
+          | "$JQ_BIN" -r '
+            if .type == "token_count" and .rate_limits != null then
+              .rate_limits
+            elif .payload != null and .payload.type == "token_count" and .payload.rate_limits != null then
+              .payload.rate_limits
+            else
+              empty
+            end
+            | [
+                (.primary.used_percent // ""),
+                (.primary.resets_at // ""),
+                (.secondary.used_percent // ""),
+                (.secondary.resets_at // "")
+              ]
+            | @tsv
+          ' 2>/dev/null \
+          | tail -n 1
+    )"
+
+    if [[ -n "$rl_tsv" ]]; then
+        IFS=$'\t' read -r primary_used primary_reset secondary_used secondary_reset <<< "$rl_tsv"
+        metrics_cmd set_rate_limit codex "${primary_used:-}" "${primary_reset:-}" "${secondary_used:-}" "${secondary_reset:-}"
+    fi
 }
 
 extract_last_agent_message() {
@@ -215,14 +266,17 @@ run_codex() {
 
 attempt=0
 while (( attempt <= MAX_RETRIES )); do
+    metrics_cmd mark_attempt codex
     message_file="$(mktemp)"
     set +e
     output=$(run_codex "$message_file" 2>&1)
     exit_code=$?
     set -e
 
+    record_codex_metrics "$output"
+
     if (( exit_code == 0 )); then
-        record_codex_usage "$output"
+        metrics_cmd mark_success codex
         final_output=""
         if [[ -s "$message_file" ]]; then
             final_output="$(cat "$message_file")"
@@ -238,6 +292,7 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for rate limit
     if echo "$output" | grep -qi "429\|rate.limit\|too many requests"; then
+        metrics_cmd mark_failure codex "$exit_code" "rate_limited"
         if (( attempt < MAX_RETRIES )); then
             echo "RETRY: Codex rate limited, waiting 30s..." >&2
             sleep 30
@@ -251,6 +306,7 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for auth failure
     if echo "$output" | grep -qi "auth\|unauthorized\|403\|login\|credential"; then
+        metrics_cmd mark_failure codex "$exit_code" "authentication_failure"
         echo "ERROR: Codex authentication failure. Run 'codex login' to fix." >&2
         echo "${output:0:500}" >&2
         exit_with_fallback_policy "authentication failure" 11
@@ -258,11 +314,13 @@ while (( attempt <= MAX_RETRIES )); do
 
     # Check for timeout
     if (( exit_code == 124 )); then
+        metrics_cmd mark_failure codex "$exit_code" "timeout"
         echo "ERROR: Codex timed out after ${TIMEOUT}s." >&2
         exit_with_fallback_policy "timeout" 12
     fi
 
     # Other failure
+    metrics_cmd mark_failure codex "$exit_code" "general_failure"
     if (( attempt < MAX_RETRIES )); then
         ((attempt++))
         continue

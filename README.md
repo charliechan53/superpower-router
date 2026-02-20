@@ -83,7 +83,7 @@ export GEMINI_TIMEOUT=60
 
 ## Deferred Token Indicator (ccstatusline)
 
-`superpower-router` now tracks per-session tokens deferred to Codex/Gemini and exposes a status command:
+`superpower-router` now tracks per-session offload telemetry for Codex/Gemini and exposes a status command:
 
 ```bash
 ~/.claude/plugins/superpower-router/hooks/router-statusline.sh
@@ -92,8 +92,13 @@ export GEMINI_TIMEOUT=60
 It renders:
 
 ```text
-Offload C:<codex> G:<gemini> Σ:<total>
+Offload C:<codex> G:<gemini> Σ:<total> | S/F C:<success>/<failure> G:<success>/<failure> | RL C:<remaining> G:<remaining|retry>
 ```
+
+Notes:
+- `C/G/Σ` are deferred token totals.
+- `S/F` are backend success/failure counts for routed attempts.
+- `RL` is best-effort rate-limit state: Codex shows remaining percent (`@HH:MM` reset when available), Gemini shows retry hint (for example `~40s`) or `N/A`.
 
 Configure it in ccstatusline as a **Custom Command** widget (command = script above).
 
