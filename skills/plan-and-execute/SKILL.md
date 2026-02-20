@@ -43,6 +43,7 @@ If both backends are missing, report routing unavailability and ask before fallb
 | Implementation/refactor/tests | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" workspace-write /path/to/project` |
 | Code review/spec review | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
 | Web/docs/external research | Gemini CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh "[prompt]"` |
+| Independent option gathering (compare model outputs) | Codex + Gemini in parallel | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh "[shared prompt]" /path/to/project read-only` |
 | Orchestration/synthesis | Claude | Stay on Claude |
 | Fallback | Sonnet 4.6 | `Task(prompt, model:sonnet)` only after explicit user confirmation when Codex fails |
 
@@ -56,10 +57,11 @@ For every routed task prompt, include:
 ## 5) Execution Loop
 1. Load the plan.
 2. Execute in batches of up to 3 independent tasks.
-3. For each task, dispatch to mapped backend first.
-4. Handle exit codes per fallback policy.
-5. Review and verify outputs between batches.
-6. Continue until all tasks are complete.
+3. For independent option/research tasks, run Codex + Gemini concurrently with `parallel-runner.sh`.
+4. For all other tasks, dispatch to mapped backend first.
+5. Handle exit codes per fallback policy.
+6. Review and verify outputs between batches.
+7. Continue until all tasks are complete.
 
 ## 6) Codex CLI Usage
 | Item | Value |
@@ -110,14 +112,34 @@ Accepted invocation formats:
   "$PROMPT"
 ```
 
-## 8) Fallback and Error Handling
+## 8) Parallel Multi-Model Option Mode
+Use this when you want diverse options from both models for the same objective.
+
+```bash
+/bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh" \
+  "$PROMPT" \
+  /path/to/project \
+  read-only
+```
+
+Advanced form with different prompts:
+
+```bash
+/bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh" \
+  --codex-prompt "Analyze implementation trade-offs in this repository." \
+  --gemini-prompt "Research latest external best practices and cite sources." \
+  --workdir /path/to/project \
+  --codex-sandbox read-only
+```
+
+## 9) Fallback and Error Handling
 | Exit Code | Action |
 |---|---|
 | `0` | Success |
 | `20` | Fail-closed signal. Ask user for explicit approval before Claude/Sonnet fallback. |
 | `10`, `11`, `12`, `13`, `1` | Only if `CODEX_FAIL_CLOSED=0`: allow fallback/report per policy. |
 
-## 9) Environment Defaults
+## 10) Environment Defaults
 | Variable | Default |
 |---|---|
 | `CODEX_MODEL` | `gpt-5.3-codex` |
@@ -126,10 +148,11 @@ Accepted invocation formats:
 | `CODEX_FAIL_CLOSED` | `1` |
 | `GEMINI_TIMEOUT` | `60` |
 
-## 10) Anti-Patterns
+## 11) Anti-Patterns
 - Creating a plan without a backend route per task
 - Implementing code directly in Claude when Codex is available
 - Doing external research directly in Claude when Gemini is available
+- Skipping `parallel-runner.sh` for independent option-gathering tasks
 - Skipping verification between batches
 - Falling back without first attempting the mapped backend
 - Proceeding on Claude/Sonnet after Codex failure without explicit user approval

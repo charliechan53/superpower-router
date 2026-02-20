@@ -13,6 +13,7 @@ All-in-one Claude Code plugin that combines the **superpowers** skill suite, **C
 3. New multi-agent router that sends subagent work to:
    - **Codex CLI** for code-centric tasks
    - **Gemini CLI** for web research tasks
+   - **Codex + Gemini in parallel** for independent option gathering
    - **Sonnet 4.6** as user-confirmed fallback when Codex fails
 
 ## Prerequisites
@@ -67,6 +68,7 @@ Note: the command namespace is `superpower-router:` (not `superpower:`).
 | --- | --- | --- |
 | Code implementation, refactors, tests, debugging in repo context | Codex CLI | Offloads high-token coding loops from Claude |
 | Web research, docs lookup, external fact gathering | Gemini CLI | Keeps browsing/research outside Claude context window |
+| Independent option gathering / model comparison | Codex + Gemini parallel runner | Produces diverse options faster from two models in one pass |
 | Codex failure for code tasks | User-confirmed Claude/Sonnet fallback | Fail-closed by default to keep Codex priority and avoid silent fallback |
 
 ## Environment Variables
@@ -123,6 +125,7 @@ On `SessionStart`, the plugin now auto-creates compatibility symlinks:
 ```bash
 ~/.claude/codex-runner.sh
 ~/.claude/gemini-runner.sh
+~/.claude/parallel-runner.sh
 ```
 
 Both point to the currently installed plugin runners and are intended for tools/prompts
@@ -134,6 +137,7 @@ Use `/bin/bash` when invoking from hooks/prompts:
 /bin/bash ~/.claude/codex-runner.sh "Fix failing tests" workspace-write "/path/to/repo"
 /bin/bash ~/.claude/codex-runner.sh "Review recent changes" read-only "/path/to/repo"
 /bin/bash ~/.claude/gemini-runner.sh "Research latest SDK breaking changes"
+/bin/bash ~/.claude/parallel-runner.sh "Propose 3 implementation options with trade-offs" "/path/to/repo" read-only
 ```
 
 ## How It Saves Tokens

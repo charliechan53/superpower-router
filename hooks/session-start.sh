@@ -9,9 +9,11 @@ PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
 CODEX_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh"
 GEMINI_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh"
+PARALLEL_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh"
 CLAUDE_HOME="${HOME}/.claude"
 CLAUDE_CODEX_SHIM="${CLAUDE_HOME}/codex-runner.sh"
 CLAUDE_GEMINI_SHIM="${CLAUDE_HOME}/gemini-runner.sh"
+CLAUDE_PARALLEL_SHIM="${CLAUDE_HOME}/parallel-runner.sh"
 
 # Initialize metrics file on session start. Do not reset by default because
 # SessionStart also fires on resume/compact in many workflows.
@@ -32,6 +34,9 @@ if [[ -x "$CODEX_RUNNER" ]]; then
 fi
 if [[ -x "$GEMINI_RUNNER" ]]; then
     ln -sfn "$GEMINI_RUNNER" "$CLAUDE_GEMINI_SHIM" >/dev/null 2>&1 || true
+fi
+if [[ -x "$PARALLEL_RUNNER" ]]; then
+    ln -sfn "$PARALLEL_RUNNER" "$CLAUDE_PARALLEL_SHIM" >/dev/null 2>&1 || true
 fi
 
 # Check if legacy skills directory exists and build warning
@@ -81,17 +86,21 @@ routing_context+="When dispatching subagent work, invoke superpower-router:plan-
 routing_context+="Routing is the default behavior when tools are available. Do not execute Codex/Gemini-eligible work directly in Claude first.\\n"
 routing_context+="- Code tasks (implement, review, refactor) → Codex CLI via codex-runner.sh\\n"
 routing_context+="- Research tasks (web, docs, trends) → Gemini CLI via gemini-runner.sh\\n"
+routing_context+="- Independent option gathering (compare model outputs) → parallel-runner.sh (Codex + Gemini together)\\n"
 routing_context+="- Orchestration (plan, decide, synthesize) → Stay on Claude\\n"
 routing_context+="- Codex failure (default fail-closed) → Ask user before Claude/Sonnet fallback"
 routing_context+="\\n\\nRunner paths:\\n"
 routing_context+="- Canonical Codex runner: ${CODEX_RUNNER}\\n"
 routing_context+="- Canonical Gemini runner: ${GEMINI_RUNNER}\\n"
+routing_context+="- Canonical Parallel runner: ${PARALLEL_RUNNER}\\n"
 routing_context+="- Compatibility Codex runner: ${CLAUDE_CODEX_SHIM}\\n"
 routing_context+="- Compatibility Gemini runner: ${CLAUDE_GEMINI_SHIM}\\n"
+routing_context+="- Compatibility Parallel runner: ${CLAUDE_PARALLEL_SHIM}\\n"
 routing_context+="\\nRunner invocation examples (use /bin/bash explicitly):\\n"
 routing_context+="- Codex code task: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" workspace-write \"<working-dir>\"\\n"
 routing_context+="- Codex review/read-only: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" read-only \"<working-dir>\"\\n"
-routing_context+="- Gemini research task: /bin/bash ${CLAUDE_GEMINI_SHIM} \"<research prompt>\""
+routing_context+="- Gemini research task: /bin/bash ${CLAUDE_GEMINI_SHIM} \"<research prompt>\"\\n"
+routing_context+="- Parallel option gathering: /bin/bash ${CLAUDE_PARALLEL_SHIM} \"<shared prompt>\" \"<working-dir>\" read-only"
 
 routing_escaped=$(escape_for_json "$routing_context")
 

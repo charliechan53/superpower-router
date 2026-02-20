@@ -4,6 +4,12 @@ description: Execute plan with proactive Codex/Gemini dispatch and fallback cont
 
 Invoke `superpower-router:plan-and-execute` and execute immediately.
 
+During execution:
+- Implementation/refactor/review tasks => Codex CLI first
+- External research/docs => Gemini CLI first
+- Independent option gathering => run Codex + Gemini concurrently via `parallel-runner.sh`
+- If Codex fails, ask user before Claude/Sonnet fallback
+
 Execution requirements:
 1. Load the plan and execute in batches of up to 3 tasks.
 2. Dispatch each task to the mapped backend before doing work yourself.
