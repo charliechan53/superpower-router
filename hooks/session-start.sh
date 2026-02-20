@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# SessionStart hook for superpower-router plugin (all-in-one: superpowers + codex + gemini routing)
+
+set -euo pipefail
+
+# Determine plugin root directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Check if legacy skills directory exists and build warning
+warning_message=""
+legacy_skills_dir="${HOME}/.config/superpowers/skills"
+if [ -d "$legacy_skills_dir" ]; then
+    warning_message="\n\n<important-reminder>IN YOUR FIRST REPLY AFTER SEEING THIS MESSAGE YOU MUST TELL THE USER:⚠️ **WARNING:** Superpowers now uses Claude Code's skills system. Custom skills in ~/.config/superpowers/skills will not be read. Move custom skills to ~/.claude/skills instead. To make this message go away, remove ~/.config/superpowers/skills</important-reminder>"
+fi
+
+# Read using-superpowers content
+using_superpowers_content=$(cat "${PLUGIN_ROOT}/skills/using-superpowers/SKILL.md" 2>&1 || echo "Error reading using-superpowers skill")
+
+# Detect which backends are available
+codex_status="not found"
+gemini_status="not found"
+
+if command -v codex &>/dev/null; then
+    codex_version=$(codex --version 2>/dev/null || echo "unknown")
+    codex_status="available (${codex_version})"
+fi
+
+if command -v gemini &>/dev/null; then
+    gemini_version=$(gemini --version 2>/dev/null || echo "unknown")
+    gemini_status="available (${gemini_version})"
+fi
+
+# Escape string for JSON embedding using bash parameter substitution.
+escape_for_json() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    s="${s//$'\n'/\\n}"
+    s="${s//$'\r'/\\r}"
+    s="${s//$'\t'/\\t}"
+    printf '%s' "$s"
+}
+
+using_superpowers_escaped=$(escape_for_json "$using_superpowers_content")
+warning_escaped=$(escape_for_json "$warning_message")
+
+# Build routing context
+routing_context="\\n\\n**Multi-Agent Routing Active (superpower-router plugin):**\\n"
+routing_context+="- Codex CLI: ${codex_status}\\n"
+routing_context+="- Gemini CLI: ${gemini_status}\\n"
+routing_context+="- Fallback: Sonnet 4.6 (via Task tool with model: sonnet)\\n\\n"
+routing_context+="When dispatching subagent work, invoke superpower-router:plan-and-execute to route tasks to the cheapest capable backend instead of spawning Claude subagents.\\n"
+routing_context+="- Code tasks (implement, review, refactor) → Codex CLI via codex-runner.sh\\n"
+routing_context+="- Research tasks (web, docs, trends) → Gemini CLI via gemini-runner.sh\\n"
+routing_context+="- Orchestration (plan, decide, synthesize) → Stay on Claude\\n"
+routing_context+="- On failure → Fallback to Sonnet 4.6 via Task tool"
+
+routing_escaped=$(escape_for_json "$routing_context")
+
+# Output context injection as JSON
+cat <<EOF
+{
+  "hookSpecificOutput": {
+    "hookEventName": "SessionStart",
+    "additionalContext": "<EXTREMELY_IMPORTANT>\nYou have superpowers with multi-agent routing.\n\n**Below is the full content of your 'superpower-router:using-superpowers' skill - your introduction to using skills. For all other skills, use the 'Skill' tool:**\n\n${using_superpowers_escaped}\n\n${routing_escaped}\n\n${warning_escaped}\n</EXTREMELY_IMPORTANT>"
+  }
+}
+EOF
+
+exit 0

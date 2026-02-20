@@ -1,0 +1,20 @@
+{
+  "name": "superpower-router",
+  "description": "All-in-one Claude Code plugin with multi-agent routing",
+  "owner": {
+    "name": "charliechan53",
+    "url": "https://github.com/charliechan53"
+  },
+  "plugins": [
+    {
+      "name": "superpower-router",
+      "description": "All-in-one Claude Code plugin: superpowers + Codex CLI + Gemini CLI routing to minimize Claude token usage",
+      "version": "0.5.0",
+      "source": "./",
+      "author": {
+        "name": "charliechan53",
+        "url": "https://github.com/charliechan53"
+      }
+    }
+  ]
+}

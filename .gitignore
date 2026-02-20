@@ -1,0 +1,5 @@
+# Local Claude Code session settings (contains absolute paths + broad permissions)
+.claude/
+
+# Local planning docs (session-specific, not for distribution)
+docs/

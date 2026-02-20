@@ -1,0 +1,30 @@
+---
+name: using-superpowers
+description: Use when starting any conversation — establishes skill usage rules and multi-agent routing
+---
+
+# Using Skills
+
+**Rule:** Check for relevant skills BEFORE any response or action. Use the `Skill` tool to invoke them.
+
+## Skill Priority
+
+1. **Process skills first** (brainstorming, debugging) — determine HOW to approach
+2. **Implementation skills second** (plan-and-execute, code-review) — guide execution
+
+## Available Skills
+
+| Skill | When to use |
+|-------|------------|
+| `brainstorming` | Before any creative/feature work |
+| `test-driven-development` | Before writing implementation code |
+| `systematic-debugging` | When hitting bugs or unexpected behavior |
+| `plan-and-execute` | Writing plans, executing tasks, routing to Codex/Gemini |
+| `code-review` | After implementation, or when receiving feedback |
+| `finishing-work` | When claiming work is complete |
+| `writing-skills` | Creating or editing skills |
+
+## Skill Types
+
+**Rigid** (TDD, debugging): Follow exactly.
+**Flexible** (patterns): Adapt to context.
