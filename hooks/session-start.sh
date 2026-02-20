@@ -8,9 +8,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
 
-# Reset per-session offload metrics at each session start/resume event.
+# Initialize metrics file on session start. Do not reset by default because
+# SessionStart also fires on resume/compact in many workflows.
+# Set ROUTER_RESET_ON_SESSION_START=1 to force reset behavior.
 if [[ -x "$METRICS_HELPER" ]]; then
-    "$METRICS_HELPER" reset >/dev/null 2>&1 || true
+    if [[ "${ROUTER_RESET_ON_SESSION_START:-0}" == "1" ]]; then
+        /bin/bash "$METRICS_HELPER" reset >/dev/null 2>&1 || true
+    else
+        /bin/bash "$METRICS_HELPER" read >/dev/null 2>&1 || true
+    fi
 fi
 
 # Check if legacy skills directory exists and build warning

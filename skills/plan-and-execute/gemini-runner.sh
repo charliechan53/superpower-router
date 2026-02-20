@@ -21,6 +21,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+JQ_BIN="/usr/bin/jq"
+if [[ ! -x "$JQ_BIN" ]]; then
+    JQ_BIN="$(command -v jq || true)"
+fi
 
 # macOS doesn't ship 'timeout'; use gtimeout (coreutils) or run without timeout
 _timeout() {
@@ -66,13 +70,13 @@ extract_json_payload() {
 
 record_gemini_usage() {
     local json_payload="$1"
-    if [[ ! -x "$METRICS_HELPER" ]]; then
+    if [[ ! -x "$METRICS_HELPER" || -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
         return 0
     fi
 
     local stats_tsv
     stats_tsv="$(
-        printf '%s\n' "$json_payload" | jq -r '
+        printf '%s\n' "$json_payload" | "$JQ_BIN" -r '
             [
               ([ (.stats.models // {})[] | (.tokens.input // 0) ] | add // 0),
               ([ (.stats.models // {})[] | (.tokens.prompt // .tokens.input // 0) ] | add // 0),
@@ -92,7 +96,7 @@ record_gemini_usage() {
     local input_tokens prompt_tokens candidates_tokens thoughts_tokens tool_tokens cached_tokens total_tokens
     IFS=$'\t' read -r input_tokens prompt_tokens candidates_tokens thoughts_tokens tool_tokens cached_tokens total_tokens <<< "$stats_tsv"
 
-    "$METRICS_HELPER" add_gemini \
+    /bin/bash "$METRICS_HELPER" add_gemini \
         "${input_tokens:-0}" \
         "${prompt_tokens:-0}" \
         "${candidates_tokens:-0}" \
@@ -111,8 +115,8 @@ while (( attempt <= MAX_RETRIES )); do
 
     if (( exit_code == 0 )); then
         json_payload="$(extract_json_payload "$output")"
-        if printf '%s\n' "$json_payload" | jq empty >/dev/null 2>&1; then
-            response="$(printf '%s\n' "$json_payload" | jq -r '.response // empty' 2>/dev/null || true)"
+        if [[ -n "$JQ_BIN" && -x "$JQ_BIN" ]] && printf '%s\n' "$json_payload" | "$JQ_BIN" empty >/dev/null 2>&1; then
+            response="$(printf '%s\n' "$json_payload" | "$JQ_BIN" -r '.response // empty' 2>/dev/null || true)"
             record_gemini_usage "$json_payload"
             if [[ -n "$response" ]]; then
                 echo "$response"

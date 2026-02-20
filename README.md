@@ -59,6 +59,7 @@ Note: the command namespace is `superpower-router:` (not `superpower:`).
 | `superpower-router:write-plan` | Create a routed implementation plan |
 | `superpower-router:execute-plan` | Execute an existing plan with routed batches |
 | `superpower-router:plan-and-execute` | Alias for combined routed planning/execution flow |
+| `superpower-router:research` | Gemini-first research-only flow (no coding unless asked) |
 
 ## Routing Table
 

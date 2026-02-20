@@ -10,6 +10,10 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 METRICS_HELPER="${SCRIPT_DIR}/router-metrics.sh"
+JQ_BIN="/usr/bin/jq"
+if [[ ! -x "$JQ_BIN" ]]; then
+    JQ_BIN="$(command -v jq || true)"
+fi
 
 format_tokens() {
     local n="$1"
@@ -31,14 +35,19 @@ if [[ ! -x "$METRICS_HELPER" ]]; then
     exit 0
 fi
 
-metrics_json="$("$METRICS_HELPER" read 2>/dev/null || true)"
+metrics_json="$(/bin/bash "$METRICS_HELPER" read 2>/dev/null || true)"
 if [[ -z "$metrics_json" ]]; then
     zero_line
     exit 0
 fi
 
+if [[ -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
+    zero_line
+    exit 0
+fi
+
 read -r codex_total gemini_total deferred_total < <(
-    printf '%s\n' "$metrics_json" | jq -r '
+    printf '%s\n' "$metrics_json" | "$JQ_BIN" -r '
         [
           (.codex.total_tokens // 0),
           (.gemini.total_tokens // 0),

@@ -3,6 +3,15 @@
 
 set -euo pipefail
 
+JQ_BIN="/usr/bin/jq"
+if [[ ! -x "$JQ_BIN" ]]; then
+    JQ_BIN="$(command -v jq || true)"
+fi
+
+has_jq() {
+    [[ -n "$JQ_BIN" && -x "$JQ_BIN" ]]
+}
+
 metrics_file() {
     local default_path="${TMPDIR:-/tmp}/superpower-router-metrics-${USER:-user}.json"
     printf '%s\n' "${ROUTER_METRICS_FILE:-$default_path}"
@@ -59,7 +68,7 @@ ensure_metrics_file() {
         return
     fi
 
-    if ! jq empty "$file" >/dev/null 2>&1; then
+    if has_jq && ! "$JQ_BIN" empty "$file" >/dev/null 2>&1; then
         init_json "$(now_iso_utc)" > "$file"
     fi
 }
@@ -95,11 +104,14 @@ add_codex_usage() {
     output_tokens="$(sanitize_int "${3:-0}")"
 
     ensure_metrics_file
+    if ! has_jq; then
+        return 0
+    fi
     local file updated_at
     file="$(metrics_file)"
     updated_at="$(now_iso_utc)"
 
-    jq \
+    "$JQ_BIN" \
       --argjson input_tokens "$input_tokens" \
       --argjson cached_input_tokens "$cached_input_tokens" \
       --argjson output_tokens "$output_tokens" \
@@ -127,11 +139,14 @@ add_gemini_usage() {
     total_tokens="$(sanitize_int "${7:-0}")"
 
     ensure_metrics_file
+    if ! has_jq; then
+        return 0
+    fi
     local file updated_at
     file="$(metrics_file)"
     updated_at="$(now_iso_utc)"
 
-    jq \
+    "$JQ_BIN" \
       --argjson input_tokens "$input_tokens" \
       --argjson prompt_tokens "$prompt_tokens" \
       --argjson candidates_tokens "$candidates_tokens" \

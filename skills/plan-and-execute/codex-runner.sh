@@ -30,6 +30,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+JQ_BIN="/usr/bin/jq"
+if [[ ! -x "$JQ_BIN" ]]; then
+    JQ_BIN="$(command -v jq || true)"
+fi
 
 # macOS doesn't ship 'timeout'; use gtimeout (coreutils) or run without timeout
 _timeout() {
@@ -140,7 +144,7 @@ exit_with_fallback_policy() {
 
 record_codex_usage() {
     local jsonl_output="$1"
-    if [[ ! -x "$METRICS_HELPER" ]]; then
+    if [[ ! -x "$METRICS_HELPER" || -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
         return 0
     fi
 
@@ -148,7 +152,7 @@ record_codex_usage() {
     usage_line="$(
         printf '%s\n' "$jsonl_output" \
           | sed -n '/^[[:space:]]*{/p' \
-          | jq -rc 'select(.type == "turn.completed" and .usage != null) | .usage' 2>/dev/null \
+          | "$JQ_BIN" -rc 'select(.type == "turn.completed" and .usage != null) | .usage' 2>/dev/null \
           | tail -n 1
     )"
 
@@ -156,18 +160,22 @@ record_codex_usage() {
         return 0
     fi
 
-    input_tokens="$(printf '%s\n' "$usage_line" | jq -r '.input_tokens // 0' 2>/dev/null || echo 0)"
-    cached_input_tokens="$(printf '%s\n' "$usage_line" | jq -r '.cached_input_tokens // 0' 2>/dev/null || echo 0)"
-    output_tokens="$(printf '%s\n' "$usage_line" | jq -r '.output_tokens // 0' 2>/dev/null || echo 0)"
+    input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.input_tokens // 0' 2>/dev/null || echo 0)"
+    cached_input_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.cached_input_tokens // 0' 2>/dev/null || echo 0)"
+    output_tokens="$(printf '%s\n' "$usage_line" | "$JQ_BIN" -r '.output_tokens // 0' 2>/dev/null || echo 0)"
 
-    "$METRICS_HELPER" add_codex "$input_tokens" "$cached_input_tokens" "$output_tokens" >/dev/null 2>&1 || true
+    /bin/bash "$METRICS_HELPER" add_codex "$input_tokens" "$cached_input_tokens" "$output_tokens" >/dev/null 2>&1 || true
 }
 
 extract_last_agent_message() {
     local jsonl_output="$1"
+    if [[ -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
+        printf ''
+        return 0
+    fi
     printf '%s\n' "$jsonl_output" \
       | sed -n '/^[[:space:]]*{/p' \
-      | jq -r '
+      | "$JQ_BIN" -r '
           select(
             .type == "item.completed"
             and .item != null
