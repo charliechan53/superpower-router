@@ -1,7 +1,7 @@
 {
   "name": "superpower-router",
   "description": "All-in-one Claude Code plugin: superpowers skills + multi-agent routing to Codex CLI, Gemini CLI, and Sonnet 4.6 for minimal Claude token usage",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "author": {
     "name": "charliechan53",
     "url": "https://github.com/charliechan53"
