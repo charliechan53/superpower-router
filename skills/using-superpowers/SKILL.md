@@ -16,7 +16,7 @@ description: Use when starting any conversation — establishes skill usage rule
 
 - For executable code tasks, route to Codex CLI first via `plan-and-execute`.
 - For external research/docs lookup tasks, route to Gemini CLI first via `plan-and-execute`.
-- Use Sonnet only when Codex/Gemini routing is unavailable or returns fallback codes.
+- Codex is fail-closed by default for code tasks: if Codex fails, ask the user for explicit approval before proceeding on Claude/Sonnet fallback.
 
 ## Available Skills
 

@@ -23,6 +23,7 @@ Then route to Codex CLI (read-only):
   /path/to/project
 ```
 
-Fallback (exit 10, 12, 1): `Task(prompt, model:"sonnet", subagent_type:"superpower-router:code-reviewer")`
+Fail-closed (exit 20): Ask the user for explicit approval before Claude/Sonnet fallback.  
+Optional fallback only when `CODEX_FAIL_CLOSED=0` (exit 10, 11, 12, 13, 1): `Task(prompt, model:"sonnet", subagent_type:"superpower-router:code-reviewer")`
 
 **Code reviewer returns:** Strengths, Issues (Critical/Important/Minor), Assessment

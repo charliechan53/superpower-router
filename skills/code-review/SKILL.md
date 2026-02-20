@@ -22,7 +22,8 @@ ${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh \
   read-only /path/to/project
 ```
 
-Fallback: `Task(prompt, model:"sonnet", subagent_type:"superpower-router:code-reviewer")`
+Fail-closed: if Codex returns exit `20`, ask user for explicit approval before any Claude/Sonnet fallback.  
+Optional fallback only when `CODEX_FAIL_CLOSED=0`: `Task(prompt, model:"sonnet", subagent_type:"superpower-router:code-reviewer")`
 
 ### 2. Code Quality Review
 

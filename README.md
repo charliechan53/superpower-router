@@ -13,7 +13,7 @@ All-in-one Claude Code plugin that combines the **superpowers** skill suite, **C
 3. New multi-agent router that sends subagent work to:
    - **Codex CLI** for code-centric tasks
    - **Gemini CLI** for web research tasks
-   - **Sonnet 4.6** as fallback
+   - **Sonnet 4.6** as user-confirmed fallback when Codex fails
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ Install `superpower-router` from the Claude Code plugin marketplace.
 | `brainstorming` | Collaborative design before implementation |
 | `test-driven-development` | TDD discipline: red-green-refactor |
 | `systematic-debugging` | Root-cause analysis, defense-in-depth |
-| `plan-and-execute` | Write plans + execute via Codex/Gemini/Sonnet routing |
+| `plan-and-execute` | Write plans + execute via Codex/Gemini routing with fail-closed Codex fallback confirmation |
 | `code-review` | Request and receive reviews (routes to Codex) |
 | `finishing-work` | Verify + integrate (merge, PR, squash) |
 | `writing-skills` | Create new skills with TDD methodology |
@@ -66,7 +66,7 @@ Note: the command namespace is `superpower-router:` (not `superpower:`).
 | --- | --- | --- |
 | Code implementation, refactors, tests, debugging in repo context | Codex CLI | Offloads high-token coding loops from Claude |
 | Web research, docs lookup, external fact gathering | Gemini CLI | Keeps browsing/research outside Claude context window |
-| Unsupported/failed route, general fallback | Sonnet 4.6 | Reliable catch-all when other routes are unavailable |
+| Codex failure for code tasks | User-confirmed Claude/Sonnet fallback | Fail-closed by default to keep Codex priority and avoid silent fallback |
 
 ## Environment Variables
 
@@ -74,6 +74,7 @@ Note: the command namespace is `superpower-router:` (not `superpower:`).
 export CODEX_MODEL=gpt-5.3-codex
 export CODEX_EFFORT=xhigh
 export CODEX_TIMEOUT=120
+export CODEX_FAIL_CLOSED=1
 export GEMINI_TIMEOUT=60
 ```
 
@@ -81,7 +82,7 @@ export GEMINI_TIMEOUT=60
 
 - Delegates large code-generation and code-edit loops to Codex CLI.
 - Routes research-heavy tasks to Gemini CLI instead of consuming Claude context.
-- Uses Sonnet 4.6 fallback only when routing cannot use Codex or Gemini.
+- Uses fail-closed Codex routing by default: asks user before any Claude/Sonnet fallback.
 - Preserves Claude context for orchestration, decisions, and final synthesis.
 
 ## Credits

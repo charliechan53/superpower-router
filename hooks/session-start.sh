@@ -49,13 +49,13 @@ warning_escaped=$(escape_for_json "$warning_message")
 routing_context="\\n\\n**Multi-Agent Routing Active (superpower-router plugin):**\\n"
 routing_context+="- Codex CLI: ${codex_status}\\n"
 routing_context+="- Gemini CLI: ${gemini_status}\\n"
-routing_context+="- Fallback: Sonnet 4.6 (via Task tool with model: sonnet)\\n\\n"
+routing_context+="- Fallback: Sonnet 4.6 (user-confirmed only when Codex fails)\\n\\n"
 routing_context+="When dispatching subagent work, invoke superpower-router:plan-and-execute to route tasks to the cheapest capable backend instead of spawning Claude subagents.\\n"
 routing_context+="Routing is the default behavior when tools are available. Do not execute Codex/Gemini-eligible work directly in Claude first.\\n"
 routing_context+="- Code tasks (implement, review, refactor) → Codex CLI via codex-runner.sh\\n"
 routing_context+="- Research tasks (web, docs, trends) → Gemini CLI via gemini-runner.sh\\n"
 routing_context+="- Orchestration (plan, decide, synthesize) → Stay on Claude\\n"
-routing_context+="- On failure → Fallback to Sonnet 4.6 via Task tool"
+routing_context+="- Codex failure (default fail-closed) → Ask user before Claude/Sonnet fallback"
 
 routing_escaped=$(escape_for_json "$routing_context")
 

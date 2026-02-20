@@ -8,4 +8,4 @@ If no plan exists, create one first, then execute immediately in 3-task batches:
 - Implementation/refactor/review: Codex CLI first
 - Web/docs/external research: Gemini CLI first
 - Orchestration and final synthesis: Claude
-- Fallback to Sonnet only when runner exit codes require it
+- If Codex fails, ask user for explicit approval before Claude/Sonnet fallback

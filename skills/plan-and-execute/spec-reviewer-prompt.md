@@ -13,7 +13,8 @@ Route to Codex CLI (read-only):
   /path/to/project
 ```
 
-Fallback (exit 10, 12, 1): `Task(description:"Review spec compliance for Task N", prompt:"[same prompt]", model:"sonnet")`
+Fail-closed (exit 20): Ask the user for explicit approval before Claude/Sonnet fallback.  
+Optional fallback only when `CODEX_FAIL_CLOSED=0` (exit 10, 11, 12, 13, 1): `Task(description:"Review spec compliance for Task N", prompt:"[same prompt]", model:"sonnet")`
 
 ---
 

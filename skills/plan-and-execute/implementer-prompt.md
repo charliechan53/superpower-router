@@ -11,7 +11,8 @@ Route to Codex CLI (workspace-write):
   /path/to/project
 ```
 
-Fallback (exit 10, 12, 1): `Task(description:"Implement Task N: [task name]", prompt:"[same prompt]", model:"sonnet")`
+Fail-closed (exit 20): Ask the user for explicit approval before Claude/Sonnet fallback.  
+Optional fallback only when `CODEX_FAIL_CLOSED=0` (exit 10, 11, 12, 13, 1): `Task(description:"Implement Task N: [task name]", prompt:"[same prompt]", model:"sonnet")`
 
 ---
 
