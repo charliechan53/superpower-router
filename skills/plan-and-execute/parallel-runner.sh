@@ -10,7 +10,18 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+resolve_script_dir() {
+    local source="${BASH_SOURCE[0]:-$0}"
+    while [[ -L "$source" ]]; do
+        local dir
+        dir="$(cd -P "$(dirname "$source")" && pwd)"
+        source="$(readlink "$source")"
+        [[ "$source" != /* ]] && source="${dir}/${source}"
+    done
+    cd -P "$(dirname "$source")" && pwd
+}
+
+SCRIPT_DIR="$(resolve_script_dir)"
 CODEX_RUNNER="${SCRIPT_DIR}/codex-runner.sh"
 GEMINI_RUNNER="${SCRIPT_DIR}/gemini-runner.sh"
 
