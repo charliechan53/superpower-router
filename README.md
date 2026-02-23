@@ -62,6 +62,22 @@ Note: the command namespace is `superpower-router:` (not `superpower:`).
 | `superpower-router:plan-and-execute` | Alias for combined routed planning/execution flow |
 | `superpower-router:research` | Gemini-first research-only flow (no coding unless asked) |
 
+## Routing Troubleshooting
+
+If you see Claude-native output like `Explore(...) Sonnet 4.6` for code planning/exploration tasks, routing likely was not followed.
+
+Quick checks:
+
+```bash
+command -v codex >/dev/null && echo "codex:ok" || echo "codex:missing"
+command -v gemini >/dev/null && echo "gemini:ok" || echo "gemini:missing"
+/bin/bash ~/.claude/plugins/superpower-router/hooks/router-statusline.sh
+```
+
+Expected behavior for code tasks:
+- Repository exploration + implementation work should hit Codex first via `~/.claude/codex-runner.sh`.
+- Sonnet fallback should only happen after explicit user confirmation when Codex fails in fail-closed mode.
+
 ## Routing Table
 
 | Task Type | Routed To | Why |

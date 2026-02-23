@@ -10,10 +10,11 @@ Create bite-sized implementation plans and proactively dispatch execution to the
 
 ## Hard Rules
 1. Route first. Do not self-implement Codex-eligible tasks before trying Codex.
-2. Route external research first. Do not do Gemini-eligible research in Claude by default.
-3. Keep architecture and product decisions in Claude.
-4. Codex is fail-closed by default. On Codex failure, ask the user for explicit approval before Claude/Sonnet fallback.
-5. Verify outputs before handoff.
+2. Route repository exploration for code tasks to Codex (read-only) before using Claude-native Explore/Task subagents.
+3. Route external research first. Do not do Gemini-eligible research in Claude by default.
+4. Keep architecture and product decisions in Claude.
+5. Codex is fail-closed by default. On Codex failure, ask the user for explicit approval before Claude/Sonnet fallback.
+6. Verify outputs before handoff.
 
 ## 1) Backend Readiness Check
 Before execution, check availability:
@@ -40,6 +41,7 @@ If both backends are missing, report routing unavailability and ask before fallb
 ## 3) Routing Policy
 | Work Type | Backend | Invocation |
 |---|---|---|
+| Repository exploration / static codebase analysis for implementation planning | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
 | Implementation/refactor/tests | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" workspace-write /path/to/project` |
 | Code review/spec review | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
 | Web/docs/external research | Gemini CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh "[prompt]"` |
@@ -155,6 +157,7 @@ Telemetry note:
 
 ## 11) Anti-Patterns
 - Creating a plan without a backend route per task
+- Using Claude-native `Explore`/`Task` subagents for Codex/Gemini-eligible work before attempting routed runners
 - Implementing code directly in Claude when Codex is available
 - Doing external research directly in Claude when Gemini is available
 - Skipping `parallel-runner.sh` for independent option-gathering tasks
