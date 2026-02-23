@@ -27,7 +27,7 @@ format_tokens() {
 }
 
 zero_line() {
-    printf 'Offload C:0 G:0 Σ:0 | S/F C:0/0 G:0/0 | RL C:N/A G:N/A\n'
+    printf 'Offload C:0 G:0 Σ:0 | S/F C:0/0 G:0/0\n'
 }
 
 is_number() {
@@ -151,13 +151,24 @@ deferred_fmt="$(format_tokens "${deferred_total:-0}")"
 codex_rl_fmt="$(format_codex_rl "${codex_rl_remaining:-}" "${codex_rl_resets_at:-}")"
 gemini_rl_fmt="$(format_gemini_rl "${gemini_rl_retry:-}" "${gemini_rl_remaining:-}" "${gemini_rl_resets_at:-}")"
 
-printf 'Offload C:%s G:%s Σ:%s | S/F C:%s/%s G:%s/%s | RL C:%s G:%s\n' \
-    "$codex_fmt" \
-    "$gemini_fmt" \
-    "$deferred_fmt" \
-    "${codex_successes:-0}" \
-    "${codex_failures:-0}" \
-    "${gemini_successes:-0}" \
-    "${gemini_failures:-0}" \
-    "$codex_rl_fmt" \
-    "$gemini_rl_fmt"
+if [[ "$codex_rl_fmt" == "N/A" && "$gemini_rl_fmt" == "N/A" ]]; then
+    printf 'Offload C:%s G:%s Σ:%s | S/F C:%s/%s G:%s/%s\n' \
+        "$codex_fmt" \
+        "$gemini_fmt" \
+        "$deferred_fmt" \
+        "${codex_successes:-0}" \
+        "${codex_failures:-0}" \
+        "${gemini_successes:-0}" \
+        "${gemini_failures:-0}"
+else
+    printf 'Offload C:%s G:%s Σ:%s | S/F C:%s/%s G:%s/%s | RL C:%s G:%s\n' \
+        "$codex_fmt" \
+        "$gemini_fmt" \
+        "$deferred_fmt" \
+        "${codex_successes:-0}" \
+        "${codex_failures:-0}" \
+        "${gemini_successes:-0}" \
+        "${gemini_failures:-0}" \
+        "$codex_rl_fmt" \
+        "$gemini_rl_fmt"
+fi

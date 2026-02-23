@@ -92,9 +92,11 @@ Expected behavior for code tasks:
 ```bash
 export CODEX_MODEL=gpt-5.3-codex
 export CODEX_EFFORT=xhigh
-export CODEX_TIMEOUT=120
+export CODEX_TIMEOUT=600
 export CODEX_FAIL_CLOSED=1
-export GEMINI_TIMEOUT=60
+export GEMINI_TIMEOUT=600
+export GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT=1
+export GEMINI_CODEX_FALLBACK_MODEL=gpt-5.2-codex
 ```
 
 ## Deferred Token Indicator (ccstatusline)
@@ -108,13 +110,13 @@ export GEMINI_TIMEOUT=60
 It renders:
 
 ```text
-Offload C:<codex> G:<gemini> Σ:<total> | S/F C:<success>/<failure> G:<success>/<failure> | RL C:<remaining> G:<remaining|retry>
+Offload C:<codex> G:<gemini> Σ:<total> | S/F C:<success>/<failure> G:<success>/<failure> [| RL C:<remaining> G:<remaining|retry>]
 ```
 
 Notes:
 - `C/G/Σ` are deferred token totals.
 - `S/F` are backend success/failure counts for routed attempts.
-- `RL` is best-effort rate-limit state: Codex shows remaining percent (`@HH:MM` reset when available), Gemini shows retry hint (for example `~40s`) or `N/A`.
+- `RL` is shown only when at least one backend has rate-limit telemetry.
 
 Configure it in ccstatusline as a **Custom Command** widget (command = script above).
 

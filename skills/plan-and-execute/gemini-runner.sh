@@ -6,7 +6,11 @@
 #   model  — Gemini model to use (default: CLI default)
 #
 # Environment variables:
-#   GEMINI_TIMEOUT — Timeout in seconds (default: 60)
+#   GEMINI_TIMEOUT — Timeout in seconds (default: 600)
+#   GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT — 1 to try Codex on first Gemini rate-limit (default: 1)
+#   GEMINI_CODEX_FALLBACK_MODEL — Codex model for Gemini fallback (default: gpt-5.2-codex)
+#   GEMINI_CODEX_FALLBACK_SANDBOX — Codex sandbox for fallback: read-only|workspace-write (default: read-only)
+#   GEMINI_CODEX_FALLBACK_WORKDIR — Working directory for Codex fallback (default: current directory)
 #
 # Exit codes:
 #   0   — Success
@@ -32,6 +36,7 @@ resolve_script_dir() {
 SCRIPT_DIR="$(resolve_script_dir)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
+CODEX_RUNNER="${SCRIPT_DIR}/codex-runner.sh"
 JQ_BIN="/usr/bin/jq"
 if [[ ! -x "$JQ_BIN" ]]; then
     JQ_BIN="$(command -v jq || true)"
@@ -52,8 +57,12 @@ _timeout() {
 PROMPT="${1:?Usage: gemini-runner.sh <prompt> [model]}"
 MODEL="${2:-}"
 
-TIMEOUT="${GEMINI_TIMEOUT:-60}"
+TIMEOUT="${GEMINI_TIMEOUT:-600}"
 MAX_RETRIES=1
+FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT="${GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT:-1}"
+CODEX_FALLBACK_MODEL="${GEMINI_CODEX_FALLBACK_MODEL:-gpt-5.2-codex}"
+CODEX_FALLBACK_SANDBOX="${GEMINI_CODEX_FALLBACK_SANDBOX:-read-only}"
+CODEX_FALLBACK_WORKDIR="${GEMINI_CODEX_FALLBACK_WORKDIR:-$(pwd)}"
 
 # Check if gemini is installed
 if ! command -v gemini &>/dev/null; then
@@ -65,6 +74,27 @@ MODEL_ARGS=()
 if [[ -n "$MODEL" ]]; then
     MODEL_ARGS=(-m "$MODEL")
 fi
+
+case "$FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT" in
+    0|1) ;;
+    *) echo "ERROR: Invalid GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT '$FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT'. Allowed: 0, 1" >&2; exit 1 ;;
+esac
+
+case "$CODEX_FALLBACK_SANDBOX" in
+    read-only|workspace-write) ;;
+    *) echo "ERROR: Invalid GEMINI_CODEX_FALLBACK_SANDBOX '$CODEX_FALLBACK_SANDBOX'. Allowed: read-only, workspace-write" >&2; exit 1 ;;
+esac
+
+run_codex_fallback() {
+    if [[ ! -x "$CODEX_RUNNER" ]]; then
+        echo "WARN: Codex fallback unavailable (runner not found: $CODEX_RUNNER)." >&2
+        return 1
+    fi
+
+    echo "FALLBACK: Gemini rate limited on first attempt; delegating to Codex (${CODEX_FALLBACK_MODEL})." >&2
+    CODEX_MODEL="$CODEX_FALLBACK_MODEL" \
+      /bin/bash "$CODEX_RUNNER" "$PROMPT" "$CODEX_FALLBACK_SANDBOX" "$CODEX_FALLBACK_WORKDIR"
+}
 
 metrics_cmd() {
     if [[ ! -x "$METRICS_HELPER" ]]; then
@@ -188,6 +218,12 @@ while (( attempt <= MAX_RETRIES )); do
         retry_after="$(extract_retry_after_seconds "$output")"
         metrics_cmd set_rate_limit gemini "${retry_after:-}" "rate_limited"
         metrics_cmd mark_failure gemini "$exit_code" "rate_limited"
+        if (( attempt == 0 )) && [[ "$FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT" == "1" ]]; then
+            if run_codex_fallback; then
+                exit 0
+            fi
+            echo "WARN: Codex fallback failed; continuing Gemini retry policy." >&2
+        fi
         if (( attempt < MAX_RETRIES )); then
             echo "RETRY: Gemini rate limited, waiting 30s..." >&2
             sleep 30

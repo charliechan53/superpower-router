@@ -146,9 +146,11 @@ Advanced form with different prompts:
 |---|---|
 | `CODEX_MODEL` | `gpt-5.3-codex` |
 | `CODEX_EFFORT` | `xhigh` |
-| `CODEX_TIMEOUT` | `120` |
+| `CODEX_TIMEOUT` | `600` |
 | `CODEX_FAIL_CLOSED` | `1` |
-| `GEMINI_TIMEOUT` | `60` |
+| `GEMINI_TIMEOUT` | `600` |
+| `GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT` | `1` |
+| `GEMINI_CODEX_FALLBACK_MODEL` | `gpt-5.2-codex` |
 
 Telemetry note:
 - Router metrics now track token offload plus backend attempt/success/failure health.

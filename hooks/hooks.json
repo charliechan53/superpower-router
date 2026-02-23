@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "ROUTER_RESET_ON_SESSION_START=1 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start-reset.sh",
             "async": false
           }
         ]

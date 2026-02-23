@@ -13,7 +13,7 @@
 # Environment variables:
 #   CODEX_MODEL   — Model to use (default: gpt-5.3-codex)
 #   CODEX_EFFORT  — Reasoning effort: xhigh|high|medium|low (default: xhigh)
-#   CODEX_TIMEOUT — Timeout in seconds (default: 120)
+#   CODEX_TIMEOUT — Timeout in seconds (default: 600)
 #   CODEX_FAIL_CLOSED — 1 to require explicit user confirmation before Claude/Sonnet fallback (default: 1)
 #
 # Exit codes:
@@ -124,7 +124,7 @@ esac
 
 MODEL="${CODEX_MODEL:-gpt-5.3-codex}"
 EFFORT="${CODEX_EFFORT:-xhigh}"
-TIMEOUT="${CODEX_TIMEOUT:-120}"
+TIMEOUT="${CODEX_TIMEOUT:-600}"
 FAIL_CLOSED="${CODEX_FAIL_CLOSED:-1}"
 MAX_RETRIES=1
 

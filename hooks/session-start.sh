@@ -15,12 +15,16 @@ CLAUDE_CODEX_SHIM="${CLAUDE_HOME}/codex-runner.sh"
 CLAUDE_GEMINI_SHIM="${CLAUDE_HOME}/gemini-runner.sh"
 CLAUDE_PARALLEL_SHIM="${CLAUDE_HOME}/parallel-runner.sh"
 
+RESET_METRICS_FLAG=0
+if [[ "${1:-}" == "--reset-metrics" ]]; then
+    RESET_METRICS_FLAG=1
+fi
+
 # Initialize metrics file on session start.
-# This script resets only when ROUTER_RESET_ON_SESSION_START=1 so callers can
-# choose behavior by matcher (for example, reset on startup/clear but not on
-# resume/compact).
+# This script resets when called with --reset-metrics, or when
+# ROUTER_RESET_ON_SESSION_START=1 is present in the environment.
 if [[ -x "$METRICS_HELPER" ]]; then
-    if [[ "${ROUTER_RESET_ON_SESSION_START:-0}" == "1" ]]; then
+    if [[ "$RESET_METRICS_FLAG" == "1" || "${ROUTER_RESET_ON_SESSION_START:-0}" == "1" ]]; then
         /bin/bash "$METRICS_HELPER" reset >/dev/null 2>&1 || true
     else
         /bin/bash "$METRICS_HELPER" read >/dev/null 2>&1 || true
