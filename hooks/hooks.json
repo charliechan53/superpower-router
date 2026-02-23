@@ -2,7 +2,17 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ROUTER_RESET_ON_SESSION_START=1 ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh",
+            "async": false
+          }
+        ]
+      },
+      {
+        "matcher": "resume|compact",
         "hooks": [
           {
             "type": "command",

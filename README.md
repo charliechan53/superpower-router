@@ -124,7 +124,8 @@ Optional metric file override:
 export ROUTER_METRICS_FILE=/tmp/superpower-router-metrics.json
 ```
 
-Metrics reset at Claude SessionStart (startup/resume/clear/compact).
+Metrics reset when a new session starts (`startup`) or when chat is cleared (`clear`).
+On `resume`/`compact`, metrics are preserved.
 
 ## Deferred Token Indicator (native statusLine)
 
