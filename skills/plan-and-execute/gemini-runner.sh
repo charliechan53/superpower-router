@@ -8,7 +8,7 @@
 # Environment variables:
 #   GEMINI_TIMEOUT — Timeout in seconds (default: 600)
 #   GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT — 1 to try Codex on first Gemini rate-limit (default: 1)
-#   GEMINI_CODEX_FALLBACK_MODEL — Codex model for Gemini fallback (default: gpt-5.2-codex)
+#   GEMINI_CODEX_FALLBACK_MODEL — Codex model for Gemini fallback (default: gpt-5.4)
 #   GEMINI_CODEX_FALLBACK_SANDBOX — Codex sandbox for fallback: read-only|workspace-write (default: read-only)
 #   GEMINI_CODEX_FALLBACK_WORKDIR — Working directory for Codex fallback (default: current directory)
 #
@@ -60,7 +60,7 @@ MODEL="${2:-}"
 TIMEOUT="${GEMINI_TIMEOUT:-600}"
 MAX_RETRIES=1
 FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT="${GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT:-1}"
-CODEX_FALLBACK_MODEL="${GEMINI_CODEX_FALLBACK_MODEL:-gpt-5.2-codex}"
+CODEX_FALLBACK_MODEL="${GEMINI_CODEX_FALLBACK_MODEL:-gpt-5.4}"
 CODEX_FALLBACK_SANDBOX="${GEMINI_CODEX_FALLBACK_SANDBOX:-read-only}"
 CODEX_FALLBACK_WORKDIR="${GEMINI_CODEX_FALLBACK_WORKDIR:-$(pwd)}"
 
