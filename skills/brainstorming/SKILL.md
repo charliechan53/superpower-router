@@ -1,6 +1,6 @@
 ---
 name: brainstorming
-description: "You MUST use this before creative implementation work. Prioritize Gemini during brainstorming/research, then hand off approved plans for Codex execution."
+description: "You MUST use this before creative implementation work. Use Codex (gpt-5.4) during brainstorming/research, then hand off approved plans for Codex (gpt-5.3-codex) execution."
 ---
 
 # Brainstorming Ideas Into Designs
@@ -28,7 +28,7 @@ You MUST create a task for each of these items and complete them in order:
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
 4. **Present design** — in sections scaled to their complexity, get user approval after each section
 5. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>-design.md` and commit
-6. **Transition to implementation** — invoke `superpower-router:plan-and-execute` to create/execute a routed implementation plan (Gemini-first during brainstorming/research context, Codex for implementation)
+6. **Transition to implementation** — invoke `superpower-router:plan-and-execute` to create/execute a routed implementation plan (Codex gpt-5.4 for analysis/research, Codex gpt-5.3-codex for implementation)
 
 ## Process Flow
 
@@ -52,7 +52,7 @@ digraph brainstorming {
 }
 ```
 
-**The terminal state is invoking `superpower-router:plan-and-execute`.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is `superpower-router:plan-and-execute`, and brainstorming should prioritize Gemini research before Codex implementation work begins.
+**The terminal state is invoking `superpower-router:plan-and-execute`.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is `superpower-router:plan-and-execute`, and brainstorming should use Codex (gpt-5.4) for analysis/research before Codex (gpt-5.3-codex) implementation work begins.
 
 ## The Process
 
@@ -67,7 +67,7 @@ digraph brainstorming {
 - Propose 2-3 different approaches with trade-offs
 - Present options conversationally with your recommendation and reasoning
 - Lead with your recommended option and explain why
-- If an approach depends on external facts (libraries, APIs, standards), gather those facts via Gemini first during planning
+- If an approach depends on external facts (libraries, APIs, standards), gather those facts via Codex (gpt-5.4) or Claude WebSearch
 
 **Presenting the design:**
 - Once you believe you understand what you're building, present the design
@@ -86,8 +86,9 @@ digraph brainstorming {
 **Implementation:**
 - Invoke `superpower-router:plan-and-execute` immediately after user approval
 - Handoff must include explicit route intent:
-  - brainstorming/research/docs lookup => Gemini CLI first
-  - implementation/refactor/review => Codex CLI after plan approval
+  - analysis/research/docs lookup => Codex CLI (gpt-5.4) first
+  - implementation/refactor/review => Codex CLI (gpt-5.3-codex) after plan approval
+  - live web research => Claude WebSearch/WebFetch
   - Codex failure => ask user before Claude/Sonnet fallback
 - Do NOT invoke any other implementation skill. `superpower-router:plan-and-execute` is the next step.
 

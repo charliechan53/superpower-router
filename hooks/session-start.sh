@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SessionStart hook for superpower-router plugin (all-in-one: superpowers + codex + gemini routing)
+# SessionStart hook for superpower-router plugin (all-in-one: superpowers + dual-model codex routing)
 
 set -euo pipefail
 
@@ -8,11 +8,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 METRICS_HELPER="${PLUGIN_ROOT}/hooks/router-metrics.sh"
 CODEX_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh"
-GEMINI_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh"
 PARALLEL_RUNNER="${PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh"
 CLAUDE_HOME="${HOME}/.claude"
 CLAUDE_CODEX_SHIM="${CLAUDE_HOME}/codex-runner.sh"
-CLAUDE_GEMINI_SHIM="${CLAUDE_HOME}/gemini-runner.sh"
 CLAUDE_PARALLEL_SHIM="${CLAUDE_HOME}/parallel-runner.sh"
 
 RESET_METRICS_FLAG=0
@@ -31,14 +29,11 @@ if [[ -x "$METRICS_HELPER" ]]; then
     fi
 fi
 
-# Compatibility shims: some prompts/tools call ~/.claude/{codex,gemini}-runner.sh.
+# Compatibility shims: some prompts/tools call ~/.claude/codex-runner.sh.
 # Keep these symlinks up to date with this plugin install path.
 mkdir -p "$CLAUDE_HOME" >/dev/null 2>&1 || true
 if [[ -x "$CODEX_RUNNER" ]]; then
     ln -sfn "$CODEX_RUNNER" "$CLAUDE_CODEX_SHIM" >/dev/null 2>&1 || true
-fi
-if [[ -x "$GEMINI_RUNNER" ]]; then
-    ln -sfn "$GEMINI_RUNNER" "$CLAUDE_GEMINI_SHIM" >/dev/null 2>&1 || true
 fi
 if [[ -x "$PARALLEL_RUNNER" ]]; then
     ln -sfn "$PARALLEL_RUNNER" "$CLAUDE_PARALLEL_SHIM" >/dev/null 2>&1 || true
@@ -56,16 +51,10 @@ using_superpowers_content=$(cat "${PLUGIN_ROOT}/skills/using-superpowers/SKILL.m
 
 # Detect which backends are available
 codex_status="not found"
-gemini_status="not found"
 
 if command -v codex &>/dev/null; then
     codex_version=$(codex --version 2>/dev/null || echo "unknown")
     codex_status="available (${codex_version})"
-fi
-
-if command -v gemini &>/dev/null; then
-    gemini_version=$(gemini --version 2>/dev/null || echo "unknown")
-    gemini_status="available (${gemini_version})"
 fi
 
 # Escape string for JSON embedding using bash parameter substitution.
@@ -85,29 +74,24 @@ warning_escaped=$(escape_for_json "$warning_message")
 # Build routing context
 routing_context="\\n\\n**Multi-Agent Routing Active (superpower-router plugin):**\\n"
 routing_context+="- Codex CLI: ${codex_status}\\n"
-routing_context+="- Gemini CLI: ${gemini_status}\\n"
 routing_context+="- Fallback: Sonnet 4.6 (user-confirmed only when Codex fails)\\n\\n"
 routing_context+="When dispatching subagent work, invoke superpower-router:plan-and-execute to route tasks to the cheapest capable backend instead of spawning Claude subagents.\\n"
-routing_context+="Routing is the default behavior when tools are available. Do not execute Codex/Gemini-eligible work directly in Claude first.\\n"
-routing_context+="Do not use Claude-native Explore/Task subagents for Codex/Gemini-eligible work before attempting routed runners.\\n"
-routing_context+="- Code tasks (implement, review, refactor) → Codex CLI via codex-runner.sh\\n"
-routing_context+="- Repo exploration for code tasks → Codex CLI read-only via codex-runner.sh\\n"
-routing_context+="- Research tasks (web, docs, trends) → Gemini CLI via gemini-runner.sh\\n"
-routing_context+="- Independent option gathering (compare model outputs) → parallel-runner.sh (Codex + Gemini together)\\n"
+routing_context+="Routing is the default behavior when Codex is available. Do not execute Codex-eligible work directly in Claude first.\\n"
+routing_context+="Do not use Claude-native Explore/Task subagents for Codex-eligible work before attempting routed runners.\\n"
+routing_context+="- Code tasks (implement, review, refactor) → Codex CLI (gpt-5.3-codex) via codex-runner.sh\\n"
+routing_context+="- Repo exploration for code tasks → Codex CLI read-only (gpt-5.3-codex) via codex-runner.sh\\n"
+routing_context+="- Logic review / analysis / research tasks → Codex CLI (gpt-5.4) via codex-runner.sh\\n"
+routing_context+="- Live web/docs research → Claude native WebSearch/WebFetch tools\\n"
+routing_context+="- Independent option gathering → two parallel Codex invocations (gpt-5.3-codex + gpt-5.4)\\n"
 routing_context+="- Orchestration (plan, decide, synthesize) → Stay on Claude\\n"
 routing_context+="- Codex failure (default fail-closed) → Ask user before Claude/Sonnet fallback"
 routing_context+="\\n\\nRunner paths:\\n"
 routing_context+="- Canonical Codex runner: ${CODEX_RUNNER}\\n"
-routing_context+="- Canonical Gemini runner: ${GEMINI_RUNNER}\\n"
-routing_context+="- Canonical Parallel runner: ${PARALLEL_RUNNER}\\n"
 routing_context+="- Compatibility Codex runner: ${CLAUDE_CODEX_SHIM}\\n"
-routing_context+="- Compatibility Gemini runner: ${CLAUDE_GEMINI_SHIM}\\n"
-routing_context+="- Compatibility Parallel runner: ${CLAUDE_PARALLEL_SHIM}\\n"
 routing_context+="\\nRunner invocation examples (use /bin/bash explicitly):\\n"
-routing_context+="- Codex code task: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" workspace-write \"<working-dir>\"\\n"
-routing_context+="- Codex review/read-only: /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" read-only \"<working-dir>\"\\n"
-routing_context+="- Gemini research task: /bin/bash ${CLAUDE_GEMINI_SHIM} \"<research prompt>\"\\n"
-routing_context+="- Parallel option gathering: /bin/bash ${CLAUDE_PARALLEL_SHIM} \"<shared prompt>\" \"<working-dir>\" read-only"
+routing_context+="- Codex code task (gpt-5.3-codex): CODEX_MODEL=gpt-5.3-codex /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" workspace-write \"<working-dir>\"\\n"
+routing_context+="- Codex review/read-only (gpt-5.3-codex): CODEX_MODEL=gpt-5.3-codex /bin/bash ${CLAUDE_CODEX_SHIM} \"<task prompt>\" read-only \"<working-dir>\"\\n"
+routing_context+="- Codex analysis/research (gpt-5.4): /bin/bash ${CLAUDE_CODEX_SHIM} \"<research prompt>\" read-only \"<working-dir>\""
 
 routing_escaped=$(escape_for_json "$routing_context")
 

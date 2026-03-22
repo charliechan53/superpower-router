@@ -27,7 +27,7 @@ format_tokens() {
 }
 
 zero_line() {
-    printf 'Offload C:0 G:0 Σ:0 | S/F C:0/0 G:0/0\n'
+    printf 'Offload C:0 | S/F C:0/0\n'
 }
 
 is_number() {
@@ -78,33 +78,6 @@ format_codex_rl() {
     fi
 }
 
-format_gemini_rl() {
-    local retry_after="${1:-}"
-    local remaining="${2:-}"
-    local resets_at="${3:-}"
-    local pct reset_hhmm rounded_retry
-
-    if is_number "$retry_after"; then
-        rounded_retry="$(awk -v x="$retry_after" 'BEGIN { if (x < 0) x = 0; printf "%.0f", x }')"
-        if [[ "$rounded_retry" != "0" ]]; then
-            printf '~%ss' "$rounded_retry"
-            return
-        fi
-    fi
-
-    pct="$(format_percent "$remaining")"
-    if [[ -z "$pct" ]]; then
-        printf 'N/A'
-        return
-    fi
-
-    reset_hhmm="$(format_epoch_hhmm "$resets_at")"
-    if [[ -n "$reset_hhmm" ]]; then
-        printf '%s%%@%s' "$pct" "$reset_hhmm"
-    else
-        printf '%s%%' "$pct"
-    fi
-}
 
 if [[ ! -x "$METRICS_HELPER" ]]; then
     zero_line
@@ -123,52 +96,32 @@ if [[ -z "$JQ_BIN" || ! -x "$JQ_BIN" ]]; then
 fi
 
 read -r \
-    codex_total gemini_total deferred_total \
-    codex_successes codex_failures gemini_successes gemini_failures \
-    codex_rl_remaining codex_rl_resets_at \
-    gemini_rl_retry gemini_rl_remaining gemini_rl_resets_at < <(
+    codex_total \
+    codex_successes codex_failures \
+    codex_rl_remaining codex_rl_resets_at < <(
     printf '%s\n' "$metrics_json" | "$JQ_BIN" -r '
         [
           (.codex.total_tokens // 0),
-          (.gemini.total_tokens // 0),
-          (.totals.deferred_tokens // 0),
           (.codex.successes // 0),
           (.codex.failures // 0),
-          (.gemini.successes // 0),
-          (.gemini.failures // 0),
           (.codex.rate_limit.primary.remaining_percent // ""),
-          (.codex.rate_limit.primary.resets_at // ""),
-          (.gemini.rate_limit.retry_after_seconds // ""),
-          (.gemini.rate_limit.remaining_percent // ""),
-          (.gemini.rate_limit.resets_at // "")
+          (.codex.rate_limit.primary.resets_at // "")
         ] | @tsv
-    ' 2>/dev/null || printf '0\t0\t0\t0\t0\t0\t0\t\t\t\t\t\n'
+    ' 2>/dev/null || printf '0\t0\t0\t\t\n'
 )
 
 codex_fmt="$(format_tokens "${codex_total:-0}")"
-gemini_fmt="$(format_tokens "${gemini_total:-0}")"
-deferred_fmt="$(format_tokens "${deferred_total:-0}")"
 codex_rl_fmt="$(format_codex_rl "${codex_rl_remaining:-}" "${codex_rl_resets_at:-}")"
-gemini_rl_fmt="$(format_gemini_rl "${gemini_rl_retry:-}" "${gemini_rl_remaining:-}" "${gemini_rl_resets_at:-}")"
 
-if [[ "$codex_rl_fmt" == "N/A" && "$gemini_rl_fmt" == "N/A" ]]; then
-    printf 'Offload C:%s G:%s Σ:%s | S/F C:%s/%s G:%s/%s\n' \
+if [[ "$codex_rl_fmt" == "N/A" ]]; then
+    printf 'Offload C:%s | S/F C:%s/%s\n' \
         "$codex_fmt" \
-        "$gemini_fmt" \
-        "$deferred_fmt" \
         "${codex_successes:-0}" \
-        "${codex_failures:-0}" \
-        "${gemini_successes:-0}" \
-        "${gemini_failures:-0}"
+        "${codex_failures:-0}"
 else
-    printf 'Offload C:%s G:%s Σ:%s | S/F C:%s/%s G:%s/%s | RL C:%s G:%s\n' \
+    printf 'Offload C:%s | S/F C:%s/%s | RL C:%s\n' \
         "$codex_fmt" \
-        "$gemini_fmt" \
-        "$deferred_fmt" \
         "${codex_successes:-0}" \
         "${codex_failures:-0}" \
-        "${gemini_successes:-0}" \
-        "${gemini_failures:-0}" \
-        "$codex_rl_fmt" \
-        "$gemini_rl_fmt"
+        "$codex_rl_fmt"
 fi

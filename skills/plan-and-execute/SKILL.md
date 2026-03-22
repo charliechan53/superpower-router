@@ -1,6 +1,6 @@
 ---
 name: plan-and-execute
-description: Use when creating implementation plans and executing tasks with proactive Codex/Gemini routing and fail-closed Codex behavior before Claude/Sonnet fallback
+description: Use when creating implementation plans and executing tasks with proactive dual-model Codex routing (gpt-5.3-codex for code, gpt-5.4 for analysis) and fail-closed behavior before Claude/Sonnet fallback
 ---
 
 # Plan and Execute
@@ -11,7 +11,7 @@ Create bite-sized implementation plans and proactively dispatch execution to the
 ## Hard Rules
 1. Route first. Do not self-implement Codex-eligible tasks before trying Codex.
 2. Route repository exploration for code tasks to Codex (read-only) before using Claude-native Explore/Task subagents.
-3. Route external research first. Do not do Gemini-eligible research in Claude by default.
+3. Route analysis/reasoning research to Codex (gpt-5.4). Use Claude WebSearch/WebFetch for live web research.
 4. Keep architecture and product decisions in Claude.
 5. Codex is fail-closed by default. On Codex failure, ask the user for explicit approval before Claude/Sonnet fallback.
 6. Verify outputs before handoff.
@@ -21,11 +21,9 @@ Before execution, check availability:
 
 ```bash
 command -v codex >/dev/null && echo "codex:ok" || echo "codex:missing"
-command -v gemini >/dev/null && echo "gemini:ok" || echo "gemini:missing"
 ```
 
-If Codex is missing for code tasks, stop and ask the user whether to proceed on Claude/Sonnet fallback.  
-If both backends are missing, report routing unavailability and ask before fallback.
+If Codex is missing for code tasks, stop and ask the user whether to proceed on Claude/Sonnet fallback.
 
 ## 2) Planning Requirements
 - Save plan as `docs/plans/YYYY-MM-DD-feature.md`.
@@ -39,15 +37,16 @@ If both backends are missing, report routing unavailability and ask before fallb
 - Add a routing summary table to the plan.
 
 ## 3) Routing Policy
-| Work Type | Backend | Invocation |
-|---|---|---|
-| Repository exploration / static codebase analysis for implementation planning | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
-| Implementation/refactor/tests | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" workspace-write /path/to/project` |
-| Code review/spec review | Codex CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
-| Web/docs/external research | Gemini CLI | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh "[prompt]"` |
-| Independent option gathering (compare model outputs) | Codex + Gemini in parallel | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh "[shared prompt]" /path/to/project read-only` |
-| Orchestration/synthesis | Claude | Stay on Claude |
-| Fallback | Sonnet 4.6 | `Task(prompt, model:sonnet)` only after explicit user confirmation when Codex fails |
+| Work Type | Backend | Model | Invocation |
+|---|---|---|---|
+| Repository exploration / static codebase analysis | Codex CLI | `gpt-5.3-codex` | `CODEX_MODEL=gpt-5.3-codex ${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
+| Implementation/refactor/tests | Codex CLI | `gpt-5.3-codex` | `CODEX_MODEL=gpt-5.3-codex ${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" workspace-write /path/to/project` |
+| Code review/spec review | Codex CLI | `gpt-5.3-codex` | `CODEX_MODEL=gpt-5.3-codex ${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
+| Logic review / analysis / non-code reasoning | Codex CLI | `gpt-5.4` | `${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh "[prompt]" read-only /path/to/project` |
+| Live web / docs / external research | Claude native | — | Use `WebSearch` / `WebFetch` tools; stay on Claude |
+| Independent option gathering (compare model outputs) | Codex × 2 in parallel | both | Run two codex-runner.sh invocations concurrently — one with `CODEX_MODEL=gpt-5.3-codex`, one with default `gpt-5.4` |
+| Orchestration/synthesis | Claude | — | Stay on Claude |
+| Fallback | Sonnet 4.6 | — | `Task(prompt, model:sonnet)` only after explicit user confirmation when Codex fails |
 
 ## 4) Prompt Contract for Routed Tasks
 For every routed task prompt, include:
@@ -59,8 +58,8 @@ For every routed task prompt, include:
 ## 5) Execution Loop
 1. Load the plan.
 2. Execute in batches of up to 3 independent tasks.
-3. For independent option/research tasks, run Codex + Gemini concurrently with `parallel-runner.sh`.
-4. For all other tasks, dispatch to mapped backend first.
+3. For independent option-gathering tasks, run two Codex invocations concurrently (one per model).
+4. For all other tasks, dispatch to mapped backend with the correct `CODEX_MODEL` first.
 5. Handle exit codes per fallback policy.
 6. Review and verify outputs between batches.
 7. Continue until all tasks are complete.
@@ -68,7 +67,8 @@ For every routed task prompt, include:
 ## 6) Codex CLI Usage
 | Item | Value |
 |---|---|
-| Model | `gpt-5.3-codex` |
+| Model (code tasks) | `gpt-5.3-codex` — set via `CODEX_MODEL=gpt-5.3-codex` |
+| Model (logic/analysis/research tasks) | `gpt-5.4` (default) |
 | Sandbox modes | `workspace-write`, `read-only` |
 | Flags | `--full-auto --skip-git-repo-check` |
 
@@ -102,36 +102,21 @@ Accepted invocation formats:
   read-only
 ```
 
-## 7) Gemini CLI Usage
-| Rule | Value |
-|---|---|
-| Prompt | Positional prompt argument |
-| Output | `--output-format text` |
-| Purpose | Search-grounded external research |
+## 7) Parallel Dual-Model Option Mode
+Use this when you want diverse analysis from both Codex models for the same objective. Run two codex-runner.sh invocations concurrently in the background.
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/gemini-runner.sh" \
-  "$PROMPT"
-```
+# Run gpt-5.3-codex (code perspective) in background
+CODEX_MODEL=gpt-5.3-codex /bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh" \
+  "$PROMPT" read-only /path/to/project &
+CODEX_PID_1=$!
 
-## 8) Parallel Multi-Model Option Mode
-Use this when you want diverse options from both models for the same objective.
+# Run gpt-5.4 (logic/analysis perspective) in background
+/bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/codex-runner.sh" \
+  "$PROMPT" read-only /path/to/project &
+CODEX_PID_2=$!
 
-```bash
-/bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh" \
-  "$PROMPT" \
-  /path/to/project \
-  read-only
-```
-
-Advanced form with different prompts:
-
-```bash
-/bin/bash "${CLAUDE_PLUGIN_ROOT}/skills/plan-and-execute/parallel-runner.sh" \
-  --codex-prompt "Analyze implementation trade-offs in this repository." \
-  --gemini-prompt "Research latest external best practices and cite sources." \
-  --workdir /path/to/project \
-  --codex-sandbox read-only
+wait $CODEX_PID_1; wait $CODEX_PID_2
 ```
 
 ## 9) Fallback and Error Handling
@@ -142,27 +127,25 @@ Advanced form with different prompts:
 | `10`, `11`, `12`, `13`, `1` | Only if `CODEX_FAIL_CLOSED=0`: allow fallback/report per policy. |
 
 ## 10) Environment Defaults
-| Variable | Default |
-|---|---|
-| `CODEX_MODEL` | `gpt-5.3-codex` |
-| `CODEX_EFFORT` | `xhigh` |
-| `CODEX_TIMEOUT` | `600` |
-| `CODEX_FAIL_CLOSED` | `1` |
-| `GEMINI_TIMEOUT` | `600` |
-| `GEMINI_FALLBACK_TO_CODEX_ON_FIRST_RATE_LIMIT` | `1` |
-| `GEMINI_CODEX_FALLBACK_MODEL` | `gpt-5.2-codex` |
+| Variable | Default | Purpose |
+|---|---|---|
+| `CODEX_MODEL` | `gpt-5.4` | Override per-invocation; use `gpt-5.3-codex` for code tasks |
+| `CODEX_MODEL_CODE` | `gpt-5.3-codex` | Reference value for code construction/review tasks |
+| `CODEX_MODEL_LOGIC` | `gpt-5.4` | Reference value for logic review/analysis/research tasks |
+| `CODEX_EFFORT` | `xhigh` | Reasoning effort |
+| `CODEX_TIMEOUT` | `600` | Timeout in seconds |
+| `CODEX_FAIL_CLOSED` | `1` | Stop and ask user before Claude fallback on failure |
 
 Telemetry note:
-- Router metrics now track token offload plus backend attempt/success/failure health.
-- Statusline format: `Offload C:<tokens> G:<tokens> Σ:<tokens> | S/F C:<s>/<f> G:<s>/<f> | RL C:<remaining> G:<remaining|retry|N/A>`.
-- Gemini rate-limit is best-effort (`retry in Xs` parsing); `N/A` means unavailable.
+- Router metrics track token offload plus backend attempt/success/failure health.
+- Statusline format: `Offload C:<tokens> Σ:<tokens> | S/F C:<s>/<f> | RL C:<remaining>%@<reset-time>`.
 
 ## 11) Anti-Patterns
 - Creating a plan without a backend route per task
-- Using Claude-native `Explore`/`Task` subagents for Codex/Gemini-eligible work before attempting routed runners
+- Using Claude-native `Explore`/`Task` subagents for Codex-eligible work before attempting routed runners
 - Implementing code directly in Claude when Codex is available
-- Doing external research directly in Claude when Gemini is available
-- Skipping `parallel-runner.sh` for independent option-gathering tasks
+- Using Claude for logic/analysis tasks when Codex (gpt-5.4) is available
+- Skipping parallel dual-model invocation for independent option-gathering tasks
 - Skipping verification between batches
 - Falling back without first attempting the mapped backend
 - Proceeding on Claude/Sonnet after Codex failure without explicit user approval

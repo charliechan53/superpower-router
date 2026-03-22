@@ -14,9 +14,10 @@ description: Use when starting any conversation — establishes skill usage rule
 
 ## Routing Default
 
-- For executable code tasks, route to Codex CLI first via `plan-and-execute`.
-- For external research/docs lookup tasks, route to Gemini CLI first via `plan-and-execute`.
-- For independent option gathering, route to Codex + Gemini in parallel via `plan-and-execute`.
+- For code construction and review tasks, route to Codex CLI (`gpt-5.3-codex`) via `plan-and-execute`.
+- For logic review, analysis, and research tasks, route to Codex CLI (`gpt-5.4`) via `plan-and-execute`.
+- For live web/docs research, use Claude's native `WebSearch`/`WebFetch` tools; stay on Claude.
+- For independent option gathering, run two Codex invocations in parallel (one with each model) via `plan-and-execute`.
 - Codex is fail-closed by default for code tasks: if Codex fails, ask the user for explicit approval before proceeding on Claude/Sonnet fallback.
 
 ## Available Skills
@@ -26,7 +27,7 @@ description: Use when starting any conversation — establishes skill usage rule
 | `brainstorming` | Before any creative/feature work |
 | `test-driven-development` | Before writing implementation code |
 | `systematic-debugging` | When hitting bugs or unexpected behavior |
-| `plan-and-execute` | Writing plans, executing tasks, routing to Codex/Gemini |
+| `plan-and-execute` | Writing plans, executing tasks, routing to Codex (`gpt-5.3-codex` / `gpt-5.4`) |
 | `code-review` | After implementation, or when receiving feedback |
 | `finishing-work` | When claiming work is complete |
 | `writing-skills` | Creating or editing skills |
